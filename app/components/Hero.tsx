@@ -45,7 +45,11 @@ export default function Hero() {
           className="eyebrow animate-slideDown"
           style={{ color: "var(--liquid-gold)", marginBottom: "2rem" }}
         >
-          Melbourne AI Automation &amp; Implementation
+          Melbourne{" "}
+          <a href="/ai-automation-melbourne" style={{ textDecoration: "underline" }}>
+            AI Automation
+          </a>{" "}
+          &amp; Implementation
         </div>
 
         <h1
