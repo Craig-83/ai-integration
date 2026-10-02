@@ -7,6 +7,7 @@ type Service = {
   title: string;
   description: string;
   href: string;
+  linkTitle?: boolean;
 };
 
 const SERVICES: Service[] = [
@@ -47,6 +48,7 @@ const SERVICES: Service[] = [
     number: "05",
     href: "/specialised-websites",
     title: "Specialised Websites",
+    linkTitle: true,
     description:
       "Fast, accessible websites built around a clear business goal. We bring strategy, design, and development together to create a site that earns attention and drives action.",
   },
@@ -87,7 +89,11 @@ export default function Services() {
             className="body-copy"
             style={{ maxWidth: "44ch", justifySelf: "end" }}
           >
-            Custom AI agents, workflow automation, specialised websites and integrations scoped to
+            Custom AI agents, workflow automation,{" "}
+            <a href="/specialised-websites" style={{ textDecoration: "underline" }}>
+              specialised websites
+            </a>{" "}
+            and integrations scoped to
             your business context. We don&apos;t sell tools. We build systems that
             run inside your existing stack.
           </p>
@@ -166,7 +172,13 @@ function ServiceCard({ service, index }: { service: Service; index: number }) {
           margin: "0 0 0.85rem",
         }}
       >
-        {service.title}
+        {service.linkTitle ? (
+          <a href={service.href} style={{ color: "inherit", textDecoration: "underline" }}>
+            {service.title}
+          </a>
+        ) : (
+          service.title
+        )}
       </h3>
       <p
         style={{
