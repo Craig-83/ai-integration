@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { withExternalLinkTargets } from "@/lib/external-links";
 import { itemBySlug } from "@/lib/members/items";
 import { canAccess } from "@/lib/members/access";
 import { getMemberProfile } from "@/lib/supabase/auth-server";
@@ -93,7 +94,7 @@ export default async function MemberItemPage({
           <div
             id={`members-guide-${item.slug}`}
             className="members-article"
-            dangerouslySetInnerHTML={{ __html: item.html }}
+            dangerouslySetInnerHTML={{ __html: withExternalLinkTargets(item.html) }}
           />
           <PromptCopyEnhancer rootId={`members-guide-${item.slug}`} />
         </>

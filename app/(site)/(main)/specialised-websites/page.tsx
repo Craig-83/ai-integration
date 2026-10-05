@@ -78,7 +78,7 @@ export default function SpecialisedWebsitesPage() {
             Explore websites and digital products Darryn Lee-Warden helped bring to life.
             The portfolio describes his role in each project so you can assess the relevant experience.
           </p>
-          <a href="https://websites.creative-milk.com.au" className="cta cta-outline-ink">View the website portfolio</a>
+          <a href="https://websites.creative-milk.com.au" target="_blank" rel="noopener noreferrer" className="cta cta-outline-ink">View the website portfolio</a>
           <h2 className="h-section" style={{ marginTop: "3rem", marginBottom: "1.5rem" }}>What should you bring to the first conversation?</h2>
           <p className="body-copy" style={{ marginBottom: "1.5rem" }}>
             Share your current website if you have one, who you want to reach, the action

@@ -64,7 +64,7 @@ export default function PreferredSource({
         <a
           href={DEEPLINK}
           target="_blank"
-          rel="noopener"
+          rel="noopener noreferrer"
           style={{
             fontFamily: "var(--font-sans)",
             fontSize: "0.82rem",

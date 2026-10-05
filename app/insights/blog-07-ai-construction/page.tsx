@@ -1,5 +1,6 @@
 ﻿import type { Metadata } from "next";
 import data from "./data.json";
+import { withExternalLinkTargets } from "@/lib/external-links";
 import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
 
@@ -15,7 +16,7 @@ export default function BlogPost() {
       <Nav />
       <main id="main" style={{ paddingTop: "68px" }}>
         <style dangerouslySetInnerHTML={{ __html: data.css }} />
-        <div dangerouslySetInnerHTML={{ __html: data.html }} />
+        <div dangerouslySetInnerHTML={{ __html: withExternalLinkTargets(data.html) }} />
       </main>
       <Footer />
     </>

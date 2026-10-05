@@ -160,7 +160,7 @@ export default function WebsiteShowcase() {
       <footer className="ws-outro">
         <p>End of selection</p>
         <h2>Have a digital product that needs clarity?</h2>
-        <a href="https://www.creative-milk.com.au/contact">Start a conversation <ArrowUpRight size={18} /></a>
+        <a href="https://www.creative-milk.com.au/contact" target="_blank" rel="noopener noreferrer">Start a conversation <ArrowUpRight size={18} /></a>
       </footer>
     </main>
   );
@@ -181,7 +181,7 @@ function ProjectChapter({ project, index, total }: { project: Project; index: nu
         <div className="ws-atmosphere" aria-hidden="true"><i /><i /><i /></div>
 
         <div className="ws-frame-wrap">
-          <a className="ws-browser" href={project.url} target="_blank" rel="noreferrer" aria-label={`Visit the ${project.name} website`}>
+          <a className="ws-browser" href={project.url} target="_blank" rel="noopener noreferrer" aria-label={`Visit the ${project.name} website`}>
             <span className="ws-frame-edge ws-frame-top"><i /><i /><i /><b>{project.host}</b></span>
             <span className="ws-frame-edge ws-frame-left" />
             <span className="ws-frame-edge ws-frame-right" />
@@ -238,7 +238,7 @@ function ProjectChapter({ project, index, total }: { project: Project; index: nu
             <div><span>Contribution</span><p>{project.contribution}</p></div>
             <div><span>Disciplines</span><ul>{project.disciplines.map((item) => <li key={item}>{item}</li>)}</ul></div>
           </div>
-          <a className="ws-visit" href={project.url} target="_blank" rel="noreferrer">
+          <a className="ws-visit" href={project.url} target="_blank" rel="noopener noreferrer">
             Visit website <ArrowUpRight size={16} aria-hidden="true" />
           </a>
         </div>
