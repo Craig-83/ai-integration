@@ -7,7 +7,7 @@
 
 import React from 'react'
 
-import { PRICING_PHASES, type PriceShape } from '@/lib/pricing'
+import { HOURLY_RATE, PRICING_PHASES, SEO_AEO_TIERS, type PriceShape } from '@/lib/pricing'
 
 const BASE_URL = 'https://www.creative-milk.com.au'
 
@@ -190,6 +190,14 @@ function priceSpecificationFor(price: PriceShape) {
         priceCurrency: 'AUD',
         unitCode: 'DAY',
       }
+    // UN/CEFACT code HUR = hour. A floor, so minPrice only (see monthlyFrom).
+    case 'hourlyFrom':
+      return {
+        '@type': 'UnitPriceSpecification',
+        minPrice: String(price.min),
+        priceCurrency: 'AUD',
+        unitCode: 'HUR',
+      }
   }
 }
 
@@ -199,7 +207,10 @@ export function PricingSchema() {
     '@type': 'ItemList',
     name: 'Creative Milk AI Implementation Pricing',
     description: 'Transparent AI implementation pricing for Australian businesses.',
-    itemListElement: PRICING_PHASES.map((phase, index) => ({
+    // The hourly rate and SEO/AEO tiers are listed after the phases; they are
+    // offers on the page but not phases, so they are appended rather than
+    // added to PRICING_PHASES.
+    itemListElement: [...PRICING_PHASES, HOURLY_RATE, ...SEO_AEO_TIERS].map((phase, index) => ({
       '@type': 'ListItem',
       position: index + 1,
       item: {

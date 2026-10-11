@@ -6,7 +6,13 @@
 // editorial copy below is written by hand. If you change a price, change it
 // there and grep PROSE_WITH_PRICES for prose that quotes the old number.
 
-import { pricingPhaseById, SUPPORT_TIERS } from "@/lib/pricing";
+import {
+  HOURLY_RATE,
+  pricingPhaseById,
+  SEO_AEO_MIN_TERM_MONTHS,
+  SEO_AEO_TIERS,
+  SUPPORT_TIERS,
+} from "@/lib/pricing";
 import {
   MODEL_USAGE,
   RESPONSE_COMMITMENTS,
@@ -44,7 +50,15 @@ export const faqs = [
   },
   {
     q: "Can we start with a smaller engagement?",
-    a: "Yes. The AI Tools Assessment is AUD $2,000 and takes three days. It's the lowest-risk way to find out where your time is going and what AI would actually take off your plate - and if we don't find you five hours a week, you get the $2,000 back.",
+    a: "Yes. The AI Tools Assessment is AUD $2,000 and takes three days. It's the lowest-risk way to find out where your time is going and what AI would actually take off your plate - and if we don't find you five hours a week, you get the $2,000 back. For a small, well-defined job, we also work by the hour from AUD $100 an hour.",
+  },
+  {
+    q: "What is AEO, and do I need it as well as SEO?",
+    a: `AEO stands for answer engine optimisation: making your business the one AI assistants such as ChatGPT, Claude, Perplexity and Google's AI Overviews name when someone asks for a recommendation. It builds on SEO rather than replacing it, which is why every tier covers both. Packages start at ${SEO_AEO_TIERS[0].priceDisplay} with a ${SEO_AEO_MIN_TERM_MONTHS}-month minimum.`,
+  },
+  {
+    q: "Do you take on small jobs by the hour?",
+    a: "Yes, from AUD $100 an hour. It suits work that is small and clearly defined: changes to your website, a single automation, setting up Claude or Copilot for your team, or a training session. We quote the hours up front, task by task, so you know the total before we start. Anything bigger or less certain goes through a Discovery Sprint so the price can be fixed.",
   },
   {
     q: "What's your capacity?",
@@ -139,6 +153,31 @@ export const phases = [
     ],
   },
 ];
+
+// Small jobs, shown after the phases. Price comes from lib/pricing.ts.
+export const hourly = {
+  title: HOURLY_RATE.name,
+  price: HOURLY_RATE.priceDisplay,
+  meta: "Quoted up front · No phase required",
+  body: "Not everything needs a phased engagement. For small, clearly defined work we quote by the hour, task by task, so you see the total before we start.",
+  examples: [
+    "Website changes and fixes",
+    "A single automation or integration",
+    "Claude or Copilot setup for your team",
+    "Training sessions and workshops",
+  ],
+};
+
+// SEO & AEO retainers, shown after the hourly band. Tier data comes from
+// lib/pricing.ts; only the framing copy is written here.
+export const seoAeo = {
+  eyebrow: "Search & AI visibility",
+  title: "SEO & AEO",
+  intro:
+    "Being found on Google is no longer enough. Customers now ask ChatGPT, Claude, Perplexity and Google's AI Overviews who to call, and those answers cite a handful of businesses. Every tier covers both: ranking in search, and being the business the AI answer names.",
+  terms: `${SEO_AEO_MIN_TERM_MONTHS}-month minimum, then month to month. Billed monthly in advance. An optional site audit before month one is quoted at the hourly rate.`,
+  tiers: SEO_AEO_TIERS,
+};
 
 export const reasons = [
   {
