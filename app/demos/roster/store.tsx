@@ -199,6 +199,11 @@ export function RosterProvider({ children }: { children: ReactNode }) {
       info.from && info.from !== shiftId
         ? { ...state, assignments: { ...state.assignments, [info.from]: (state.assignments[info.from] ?? []).filter((id) => id !== info.staffId) } }
         : state;
+    if (!info.from && (base.assignments[shiftId] ?? []).includes(info.staffId)) {
+      const name = state.staff.find((x) => x.id === info.staffId)?.name.split(" ")[0];
+      toast({ title: `${name} is already on that shift`, severity: "low" });
+      return;
+    }
     const ids = (base.assignments[shiftId] ?? []).filter((id) => id !== info.staffId);
     let replacing = target.avatarId && target.avatarId !== info.staffId ? target.avatarId : undefined;
     if (!replacing && ids.length >= sh.slots) replacing = bestSwap(base, shiftId, info.staffId);
