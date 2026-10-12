@@ -10,6 +10,30 @@ import { Avatar, Icon, money, useNarrow } from "./ui";
 
 type DropState = Severity | "ok" | "full";
 
+// The dragged person travels in the drag data itself, so a drop still works
+// even if React state was reset mid-drag.
+const DRAG_TYPE = "application/x-roster-staff";
+type DragPayload = { staffId: string; from?: string };
+
+function startDrag(e: DragEvent, payload: DragPayload) {
+  e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(payload));
+  e.dataTransfer.setData("text/plain", payload.staffId);
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function isRosterDrag(e: DragEvent) {
+  return Array.from(e.dataTransfer.types).includes(DRAG_TYPE);
+}
+
+function readDrag(e: DragEvent): DragPayload | null {
+  try {
+    const raw = e.dataTransfer.getData(DRAG_TYPE);
+    return raw ? (JSON.parse(raw) as DragPayload) : null;
+  } catch {
+    return null;
+  }
+}
+
 const DROP_TAG: Record<DropState, { text: string; bg: string }> = {
   ok: { text: "Clear", bg: "var(--rg-ok)" },
   low: { text: "Clear", bg: "var(--rg-ok)" },
@@ -224,9 +248,9 @@ function PersonRow({ s }: { s: Staff }) {
       className={`rg-person ${drag?.staffId === s.id && !drag.from ? "dragging" : ""}`}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData("text/plain", s.id);
-        e.dataTransfer.effectAllowed = "move";
-        setDrag({ staffId: s.id });
+        startDrag(e, { staffId: s.id });
+        // Rendering the drop preview inside dragstart can make Chrome abort the drag
+        window.setTimeout(() => setDrag({ staffId: s.id }), 0);
       }}
       onDragEnd={() => setDrag(null)}
       onClick={() => setDrawer({ kind: "person", id: s.id })}
@@ -308,9 +332,10 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
     e.stopPropagation();
     setOver(false);
     setOverAvatar(null);
-    if (!drag) return;
-    const { staffId, from } = drag;
+    const payload = readDrag(e) ?? drag;
     r.setDrag(null);
+    if (!payload) return;
+    const { staffId, from } = payload;
     if (from === sh.id && !replacing) return;
     if (!replacing && ids.filter((id) => id !== staffId).length >= sh.slots) {
       r.toast({ title: "That shift is already full", sub: "Drop onto a person to swap them out.", severity: "medium" });
@@ -343,8 +368,9 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
         }
       }}
       onDragOver={(e) => {
-        if (!drag) return;
+        if (!isRosterDrag(e)) return;
         e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
         setOver(true);
       }}
       onDragLeave={() => setOver(false)}
@@ -369,13 +395,14 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
               draggable
               onDragStart={(e) => {
                 e.stopPropagation();
-                e.dataTransfer.setData("text/plain", id);
-                r.setDrag({ staffId: id, from: sh.id });
+                startDrag(e, { staffId: id, from: sh.id });
+                window.setTimeout(() => r.setDrag({ staffId: id, from: sh.id }), 0);
               }}
               onDragEnd={() => r.setDrag(null)}
               onDragOver={(e) => {
-                if (!drag || drag.staffId === id) return;
+                if (!isRosterDrag(e) || drag?.staffId === id) return;
                 e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
                 e.stopPropagation();
                 setOverAvatar(id);
               }}

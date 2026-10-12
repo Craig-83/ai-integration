@@ -86,27 +86,19 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   }, [hist.present]);
 
   // A drag that never gets its drop (released off-window, a flaky trackpad)
-  // must not leave the board stuck in preview mode. Native drags suppress
-  // mouse events, so any plain mouse movement means the drag is over.
+  // must not leave the board stuck in preview mode.
   useEffect(() => {
     if (!drag) return;
     const clear = () => setDrag(null);
-    const onMove = (e: MouseEvent) => {
-      if (e.buttons === 0) clear();
-    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") clear();
     };
-    const t = window.setTimeout(() => {
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("pointerdown", clear);
-    }, 300);
+    // Native drags suppress pointer events, so a pointerdown means it's over
+    window.addEventListener("pointerdown", clear);
     window.addEventListener("dragend", clear);
     window.addEventListener("drop", clear);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.clearTimeout(t);
-      window.removeEventListener("mousemove", onMove);
       window.removeEventListener("pointerdown", clear);
       window.removeEventListener("dragend", clear);
       window.removeEventListener("drop", clear);
