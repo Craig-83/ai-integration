@@ -253,7 +253,7 @@ export function assignmentFlags(state: RosterState, staff: Staff, sh: Shift): Fl
   const tenant = state.tenants.find((t) => t.id === sh.tenantId)!;
   const date = shiftDate(state.weekStart, sh.day);
   const at = where(state, sh);
-  const first = staff.name.split(" ")[0];
+  const first = staff.name.trim().split(/\s+/)[0];
   const add = (severity: Severity, code: string, title: string, detail: string) =>
     flags.push({ id: `${code}:${staff.id}:${sh.id}`, severity, code, title, detail, staffId: staff.id, shiftId: sh.id });
 
@@ -265,7 +265,7 @@ export function assignmentFlags(state: RosterState, staff: Staff, sh: Shift): Fl
   // Building-wide site induction
   const site = credentialStatus(staff, (c) => c.kind === "induction" && c.scope === "site", date);
   if (site.status === "missing" || site.status === "expired")
-    add("high", "induction", `${first} has no current site induction`, `Every cleaner needs the building induction before working at ${at}. Record it in Inductions once done.`);
+    add("high", "site-induction", `${first} has no current site induction`, `Every cleaner needs the building induction before working at ${at}. Record it in Inductions once done.`);
   else if (site.status === "expiring") expiringNote(site.cred, "site induction");
 
   for (const req of tenant.requirements) {
@@ -330,7 +330,7 @@ export function assignmentFlags(state: RosterState, staff: Staff, sh: Shift): Fl
 export function staffWeekFlags(state: RosterState, staff: Staff, week: StaffWeek, shifts: Shift[]): Flag[] {
   const flags: Flag[] = [];
   if (shifts.length === 0) return flags;
-  const first = staff.name.split(" ")[0];
+  const first = staff.name.trim().split(/\s+/)[0];
   const oc = onCostMultiplier(state);
 
   if (staff.visa.type === "student" && state.settings.courseInSession && week.fortnightHours !== undefined) {
@@ -409,7 +409,7 @@ export function staffWeekFlags(state: RosterState, staff: Staff, week: StaffWeek
       id: `pt-hours:${staff.id}`,
       severity: "low",
       code: "pt-hours",
-      title: `${first} is above their agreed ${staff.agreedHours} hours`,
+      title: `${first} is above their agreed ${staff.agreedHours} ${staff.agreedHours === 1 ? "hour" : "hours"}`,
       detail: `Rostered ${week.hours.toFixed(1)} h. Fine at ordinary rates, but confirm ${first} has agreed to the extra hours in writing.`,
       staffId: staff.id,
     });

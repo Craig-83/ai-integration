@@ -70,7 +70,7 @@ describe("security", () => {
   });
 
   it("flags a missing site induction as high", () => {
-    expect(codes(withAssignments({ "studio-0-1730": ["lucy"] }), "lucy")).toContain("high:induction");
+    expect(codes(withAssignments({ "studio-0-1730": ["lucy"] }), "lucy")).toContain("high:site-induction");
   });
 
   it("flags an induction that lapses mid-week", () => {

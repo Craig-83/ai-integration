@@ -55,7 +55,7 @@ export function SitesView() {
           const esc = el.filter((e) => e.status === "escort").length;
           const issues = shifts.flatMap((s) => analysis.byShift[s.id] ?? []).filter((f) => f.severity === "critical" || f.severity === "high").length;
           return (
-            <button key={t.id} className="rg-card" style={{ textAlign: "left", borderTop: `4px solid hsl(${t.hue} 55% 45%)`, cursor: "pointer" }} onClick={() => r.setDrawer({ kind: "tenant", id: t.id })}>
+            <button key={t.id} className="rg-card" style={{ textAlign: "left", borderTop: `4px solid hsl(${t.hue} 55% 45%)`, cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "flex-start" }} onClick={() => r.setDrawer({ kind: "tenant", id: t.id })}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{t.name}</div>

@@ -35,7 +35,7 @@ export function InductionsView() {
   const [record, setRecord] = useState<{ staffId?: string; key?: string } | null>(null);
   const today = state.weekStart;
 
-  const rosteredWithout = analysis.flags.filter((f) => f.code === "induction");
+  const rosteredWithout = analysis.flags.filter((f) => f.code === "induction" || f.code === "site-induction");
   const dueSoon = state.staff.flatMap((s) =>
     s.credentials
       .filter((c) => c.expires && c.expires >= today && daysBetween(today, c.expires) <= 30)
@@ -51,7 +51,7 @@ export function InductionsView() {
             Who has been inducted where, and which checks are current. Record an induction here and the roster re-checks every shift instantly.
           </div>
         </div>
-        <button className="rg-btn rg-btn-gold" onClick={() => setRecord({})}>
+        <button className="rg-btn rg-btn-gold" onClick={() => setRecord({})} disabled={state.staff.length === 0}>
           <Icon name="plus" size={14} /> Record an induction
         </button>
       </div>
@@ -159,7 +159,7 @@ export function RecordInductionModal({ staffId, preset, onClose }: { staffId?: s
   const r = useRoster();
   const { state } = r;
   const cols = columns(state).filter((c) => c.kind !== "agsva");
-  const [who, setWho] = useState(staffId ?? state.staff.find((s) => s.credentials.every((c) => c.scope !== "site"))?.id ?? state.staff[0].id);
+  const [who, setWho] = useState(staffId ?? state.staff.find((s) => s.credentials.every((c) => c.scope !== "site"))?.id ?? state.staff[0]?.id ?? "");
   const [key, setKey] = useState(preset ?? "site");
   const [date, setDate] = useState(state.weekStart);
   const [by, setBy] = useState(INDUCTORS[0]);

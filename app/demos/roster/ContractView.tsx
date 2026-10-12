@@ -10,7 +10,8 @@ import { Bar, Icon, money, Switch } from "./ui";
 /** Plausible weekly history that sums exactly to the contract's YTD figures. */
 function history(total: number, weeks: number) {
   const shape = [0.97, 1.0, 0.99, 1.02, 0.98, 1.06, 1.01, 0.99, 1.0, 1.04, 0.98, 1.0, 1.08, 0.99, 1.01, 0.97, 1.05, 1.02];
-  const s = shape.slice(0, weeks);
+  // Repeat the shape for contracts further into the year than the sample covers
+  const s = Array.from({ length: weeks }, (_, i) => shape[i % shape.length]);
   const sum = s.reduce((a, b) => a + b, 0);
   return s.map((x) => (x / sum) * total);
 }
@@ -25,7 +26,8 @@ export function ContractView() {
   const bars = [...past, t.contractCost];
   // Axis starts well above zero so week-to-week variance is visible
   const max = Math.max(...bars, weekAlloc) * 1.04;
-  const min = Math.min(...bars, weekAlloc) * 0.9;
+  const lo = Math.min(...bars, weekAlloc) * 0.9;
+  const min = max - lo < 1 ? 0 : lo;
   const y = (v: number) => H - ((v - min) / (max - min)) * H;
   const proRata = weekAlloc * (c.ytdWeeks + 1);
   const spent = c.ytdCost + t.contractCost;

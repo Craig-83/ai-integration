@@ -6,7 +6,10 @@ import { analyse, autoRoster, fixAll } from "@/lib/roster/engine";
 import { blankRoster, extraClean, manualRoster, sickCall } from "@/lib/roster/scenarios";
 import { formatDate } from "@/lib/roster/dates";
 import { addDays } from "@/lib/roster/dates";
-import type { Severity } from "@/lib/roster/types";
+import type { RosterState, Severity } from "@/lib/roster/types";
+import { OverviewView } from "./OverviewView";
+import { HistoryView } from "./HistoryView";
+import { FixMoment } from "./FixMoment";
 import { RosterProvider, useRoster } from "./store";
 import { Avatar, Bar, Icon, money, SEV_COLOR, type IconName } from "./ui";
 import { RosterBoard } from "./RosterBoard";
@@ -20,14 +23,33 @@ import { ContractView } from "./ContractView";
 import { DevDataToggle } from "./DevDataToggle";
 import { SEVERITY_LABEL } from "@/lib/roster/engine";
 
-type Tab = "roster" | "people" | "inductions" | "sites" | "contract";
-const TABS: { id: Tab; label: string; icon: IconName }[] = [
+type Tab = "overview" | "roster" | "people" | "inductions" | "sites" | "contract" | "history";
+const TABS: { id: Tab; label: string; icon: IconName; more?: boolean }[] = [
+  { id: "overview", label: "Overview", icon: "grid" },
   { id: "roster", label: "Roster", icon: "calendar" },
   { id: "people", label: "People", icon: "users" },
-  { id: "inductions", label: "Inductions", icon: "badge" },
-  { id: "sites", label: "Tenants", icon: "building" },
-  { id: "contract", label: "Contract", icon: "chart" },
+  { id: "inductions", label: "Inductions", icon: "badge", more: true },
+  { id: "sites", label: "Tenants", icon: "building", more: true },
+  { id: "contract", label: "Contract", icon: "chart", more: true },
+  { id: "history", label: "History", icon: "clock" },
 ];
+
+/** Shift ids whose people changed between two rosters */
+function changedShifts(a: RosterState, b: RosterState): string[] {
+  return b.shifts
+    .filter((sh) => {
+      const x = [...(a.assignments[sh.id] ?? [])].sort().join();
+      const y = [...(b.assignments[sh.id] ?? [])].sort().join();
+      return x !== y;
+    })
+    .map((sh) => sh.id);
+}
+
+export interface FixMomentData {
+  before: { serious: number; cost: number; over: number };
+  after: { serious: number; cost: number; over: number };
+  changes: number;
+}
 
 export default function RosterApp() {
   return (
@@ -42,6 +64,8 @@ function Shell() {
   const r = useRoster();
   const { state, analysis, drawer, setDrawer } = r;
   const [menu, setMenu] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [moment, setMoment] = useState<FixMomentData | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const doUndo = () => {
@@ -50,12 +74,14 @@ function Shell() {
     // Older "you did X, undo?" messages no longer describe the board
     r.toasts.filter((x) => x.undo).forEach((x) => r.dismiss(x.id));
     r.undo();
+    r.log({ kind: "undo", summary: `Undid: ${label}` });
     r.toast({ title: `Undone: ${label}`, sub: "Redo with ⇧⌘Z or the arrow next to Undo." });
   };
   const doRedo = () => {
     if (!r.canRedo) return;
     const label = r.redoLabel;
     r.redo();
+    r.log({ kind: "undo", summary: `Redid: ${label}` });
     r.toast({ title: `Redone: ${label}` });
   };
 
@@ -67,7 +93,8 @@ function Shell() {
       sub: `${money(a.totals.contractCost)} against a ${money(a.totals.allocCost)} budget. ${a.totals.counts.critical + a.totals.counts.high === 0 ? "No compliance issues." : `${a.totals.counts.critical + a.totals.counts.high} issues need a person to decide.`}`,
       severity: "ok",
       undo: true,
-    });
+    }, "auto");
+    r.setFlash(changedShifts(state, next));
     setTab("roster");
     setDrawer(null);
   };
@@ -81,30 +108,42 @@ function Shell() {
       moved += (next.assignments[sh.id] ?? []).filter((id) => !was.includes(id)).length;
     }
     const fixed = before.totals.counts.critical + before.totals.counts.high - (a.totals.counts.critical + a.totals.counts.high);
-    r.commit(next, {
+    const serious = (x: typeof a) => x.totals.counts.critical + x.totals.counts.high;
+    const note = {
       title: fixed > 0 ? `Fixed ${fixed} critical and high issues` : "Nothing serious to fix",
       sub: `${moved} ${moved === 1 ? "change" : "changes"} to the roster. Weekly cost ${money(before.totals.contractCost)} → ${money(a.totals.contractCost)}.`,
-      severity: "ok",
+      severity: "ok" as const,
       undo: true,
-    });
+    };
+    // The fix moment replaces the usual message, so don't show both
+    r.commit(next, { ...note, silent: fixed > 0 }, "fix");
     setTab("roster");
     setDrawer(null);
+    if (fixed > 0) {
+      r.toasts.forEach((x) => r.dismiss(x.id));
+      r.setFlash(changedShifts(state, next));
+      setMoment({
+        before: { serious: serious(before), cost: before.totals.contractCost, over: before.totals.contractCost - before.totals.allocCost },
+        after: { serious: serious(a), cost: a.totals.contractCost, over: a.totals.contractCost - a.totals.allocCost },
+        changes: moved,
+      });
+    }
   };
 
   const scenarios: { label: string; sub: string; run: () => void }[] = [
     {
       label: "Friday's spreadsheet roster",
       sub: "Built by hand and copied from last week. Looks fine. Isn't.",
-      run: () => r.commit(manualRoster(), { title: "Loaded the hand-built roster", sub: "Same people, same shifts, the mistakes nobody spotted.", undo: true }),
+      run: () => r.commit(manualRoster(), { title: "Loaded the hand-built roster", sub: "Same people, same shifts, the mistakes nobody spotted.", undo: true }, "scenario"),
     },
-    { label: "Blank week", sub: "Every shift open, ready to auto-roster", run: () => r.commit(blankRoster(), { title: "Cleared the week", undo: true }) },
+    { label: "Blank week", sub: "Every shift open, ready to auto-roster", run: () => r.commit(blankRoster(), { title: "Cleared the week", undo: true }, "scenario") },
     { label: "Auto-roster from scratch", sub: "Cheapest compliant roster in one pass (A)", run: runAuto },
     { label: "Fix everything", sub: "Swap out every critical and high issue, keep the rest (F)", run: runFix },
     {
       label: "Sick call: Aisha is out Wednesday",
       sub: "She's an NV1 escort. Watch what that breaks.",
       run: () => {
-        r.commit(sickCall(state, "aisha", 2), { title: "Aisha called in sick for Wednesday", sub: "Her shifts are open and she's marked unavailable.", severity: "high", undo: true });
+        r.commit(sickCall(state, "aisha", 2), { title: "Aisha called in sick for Wednesday", sub: "Her shifts are open and she's marked unavailable.", severity: "high", undo: true }, "scenario");
         setTab("roster");
       },
     },
@@ -112,7 +151,7 @@ function Shell() {
       label: "Client requests an extra clean",
       sub: "Sunday post-fit-out clean at Southbank Mutual, chargeable",
       run: () => {
-        r.commit(extraClean(state), { title: "Added a chargeable variation", sub: "Sunday 9am, 2 cleaners. Billed to the client, not the contract.", severity: "ok", undo: true });
+        r.commit(extraClean(state), { title: "Added a chargeable variation", sub: "Sunday 9am, 2 cleaners. Billed to the client, not the contract.", severity: "ok", undo: true }, "scenario");
         setTab("roster");
         setDrawer({ kind: "shift", id: "bank-6-0900-extra" });
       },
@@ -124,6 +163,7 @@ function Shell() {
         r.commit(
           { ...state, settings: { ...state.settings, courseInSession: !state.settings.courseInSession } },
           { title: state.settings.courseInSession ? "Student visa cap lifted for the break" : "Student visa cap back on", undo: true },
+          "setting",
         ),
     },
   ];
@@ -150,7 +190,7 @@ function Shell() {
       else if (e.key === "f") runFix();
       else if (e.key === "d") setMenu((m) => !m);
       else if (e.key === "i") setDrawer({ kind: "issues" });
-      else if (/^[1-5]$/.test(e.key)) setTab(TABS[Number(e.key) - 1].id);
+      else if (/^[1-7]$/.test(e.key)) setTab(TABS[Number(e.key) - 1].id);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -179,19 +219,39 @@ function Shell() {
           <div>
             <div className="rg-logo-name">Roster Guard</div>
             <div className="rg-logo-sub">
-              Collins Exchange Tower · {formatDate(state.weekStart)} to {formatDate(addDays(state.weekStart, 6), true)}
+              {state.contract.name.split(":")[0]} · {formatDate(state.weekStart)} to {formatDate(addDays(state.weekStart, 6), true)}
             </div>
           </div>
         </div>
         <nav className="rg-tabs" role="tablist">
           {TABS.map((x, i) => (
-            <button key={x.id} role="tab" aria-selected={tab === x.id} className="rg-tab" onClick={() => setTab(x.id)}>
+            <button key={x.id} role="tab" aria-selected={tab === x.id} className={`rg-tab ${x.more ? "rg-tab-more" : ""}`} onClick={() => setTab(x.id)}>
               <Icon name={x.icon} size={18} />
               <span>{x.label}</span>
               <kbd>{i + 1}</kbd>
             </button>
           ))}
+          <button
+            className={`rg-tab rg-tab-morebtn ${TABS.some((x) => x.more && x.id === tab) ? "is-active" : ""}`}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((m) => !m)}
+          >
+            <Icon name="more" size={18} />
+            <span>More</span>
+          </button>
         </nav>
+        {moreOpen && (
+          <div className="rg-moresheet" role="menu" onClick={() => setMoreOpen(false)}>
+            {TABS.filter((x) => x.more).map((x) => (
+              <button key={x.id} role="menuitem" className="rg-menu-item" onClick={() => setTab(x.id)}>
+                <Icon name={x.icon} size={18} />
+                <div>
+                  <b>{x.label}</b>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="rg-head-actions">
           <button
             className="rg-btn rg-btn-dark rg-undo"
@@ -233,7 +293,8 @@ function Shell() {
                 <button
                   className="rg-menu-item"
                   onClick={() => {
-                    r.commit(manualRoster(), { title: "Demo reset" });
+                    r.resetHistory();
+                    r.commit(manualRoster(), { title: "Demo reset" }, "scenario");
                     setMenu(false);
                     setTab("roster");
                     setDrawer(null);
@@ -278,7 +339,8 @@ function Shell() {
             {t.chargeableHours > 0 && <span style={{ color: "var(--rg-ok)" }}>+{t.chargeableHours} h billable</span>}
           </div>
           <div className="rg-kpi-value num">
-            {t.contractHours.toFixed(1)} <small>/ {t.allocHours.toFixed(0)} h</small>
+            {t.contractHours.toLocaleString("en-AU", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}{" "}
+            <small>/ {Math.round(t.allocHours).toLocaleString("en-AU")} h</small>
           </div>
           <Bar value={t.contractHours} max={t.allocHours} />
         </div>
@@ -303,12 +365,12 @@ function Shell() {
               View all (I)
             </button>
           </div>
-          {serious === 0 ? (
-            <div className="rg-kpi-value" style={{ color: "var(--rg-ok)", fontSize: 16, marginTop: 6, gap: 8 }}>
-              <Icon name="check" size={18} /> No visa, clearance or induction breaches
-            </div>
-          ) : null}
           <div className="rg-flagchips">
+            {serious === 0 && (
+              <span className="rg-flagchip rg-allclear">
+                <Icon name="check" size={14} /> No breaches
+              </span>
+            )}
             {(["critical", "high", "medium", "low"] as Severity[])
               .filter((s) => serious > 0 || s === "medium" || s === "low")
               .map((s) => (
@@ -327,7 +389,9 @@ function Shell() {
       </section>
 
       <div className="rg-main" style={{ minHeight: 0 }}>
+        {tab === "overview" && <OverviewView onOpenRoster={() => setTab("roster")} />}
         {tab === "roster" && <RosterBoard />}
+        {tab === "history" && <HistoryView />}
         {tab === "people" && <PeopleView />}
         {tab === "inductions" && <InductionsView />}
         {tab === "sites" && <SitesView />}
@@ -349,6 +413,17 @@ function Shell() {
           </div>
         ) : null;
       })()}
+
+      {moment && (
+        <FixMoment
+          data={moment}
+          onDone={() => setMoment(null)}
+          onUndo={() => {
+            setMoment(null);
+            doUndo();
+          }}
+        />
+      )}
 
       {process.env.NODE_ENV !== "production" && <DevDataToggle />}
 

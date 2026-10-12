@@ -6,8 +6,20 @@ import { analyse, evaluateCandidate, type Analysis } from "@/lib/roster/engine";
 import { manualRoster } from "@/lib/roster/scenarios";
 import type { Credential, RosterState, Severity } from "@/lib/roster/types";
 import { DAY_SHORT, formatTime } from "@/lib/roster/dates";
+import {
+  DEFAULT_RETENTION_MONTHS,
+  entryId,
+  SEED_HISTORY,
+  shiftLabel,
+  whoWasOnSite,
+  type HistoryEntry,
+  type HistoryKind,
+} from "@/lib/roster/history";
 
 const STORAGE_KEY = "cm-roster-demo-v1";
+const HISTORY_KEY = "cm-roster-history-v1";
+const RETENTION_KEY = "cm-roster-retention-v1";
+const ACTOR = "You (site manager)";
 const HISTORY_LIMIT = 60;
 
 export type DragInfo = { staffId: string; from?: string };
@@ -27,6 +39,8 @@ export interface Toast {
   sub?: string;
   severity?: Severity | "ok";
   undo?: boolean;
+  /** Record and label the change, but don't show a message */
+  silent?: boolean;
 }
 
 interface Store {
@@ -37,7 +51,16 @@ interface Store {
   /** What the next undo / redo will reverse, for button labels */
   undoLabel: string | null;
   redoLabel: string | null;
-  commit: (next: RosterState, toast?: Omit<Toast, "id">) => void;
+  commit: (next: RosterState, toast?: Omit<Toast, "id">, kind?: HistoryKind) => void;
+  history: HistoryEntry[];
+  log: (e: Omit<HistoryEntry, "id" | "at" | "actor"> & { actor?: string; at?: string }) => void;
+  logIncident: (i: { shiftId: string; type: string; severity: "minor" | "major" | "notifiable"; note: string }) => void;
+  resetHistory: () => void;
+  retentionMonths: number;
+  setRetention: (m: number) => void;
+  /** Shifts that just changed, for the after-fix sweep */
+  flash: { ids: string[]; key: number } | null;
+  setFlash: (ids: string[]) => void;
   undo: () => void;
   redo: () => void;
   assign: (shiftId: string, staffId: string, opts?: { replacing?: string; from?: string }) => void;
@@ -77,6 +100,10 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const draggedAt = useRef(0);
   const [pulse, setPulse] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>(SEED_HISTORY);
+  const [retentionMonths, setRetentionMonths] = useState(DEFAULT_RETENTION_MONTHS);
+  const [flash, setFlashState] = useState<{ ids: string[]; key: number } | null>(null);
+  const historyLoaded = useRef(false);
   const seq = useRef(0);
   const loaded = useRef(false);
 
@@ -108,6 +135,30 @@ export function RosterProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("popstate", apply);
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(HISTORY_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as HistoryEntry[];
+        if (Array.isArray(saved)) setHistory(saved);
+      }
+      const ret = Number(window.localStorage.getItem(RETENTION_KEY));
+      if (ret > 0) setRetentionMonths(ret);
+    } catch {
+      /* private mode: start from the seed history */
+    }
+    historyLoaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (!historyLoaded.current) return;
+    try {
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      window.localStorage.setItem(RETENTION_KEY, String(retentionMonths));
+    } catch {
+      /* ignore */
+    }
+  }, [history, retentionMonths]);
 
   // Restore after mount so server and client render the same first frame
   useEffect(() => {
@@ -149,8 +200,25 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     [dismiss],
   );
 
+  // The demo lives in the week being rostered, so new entries take that date with today's clock time
+  const weekStartRef = useRef(hist.present.weekStart);
+  weekStartRef.current = hist.present.weekStart;
+  const log = useCallback((e: Omit<HistoryEntry, "id" | "at" | "actor"> & { actor?: string; at?: string }) => {
+    const now = new Date();
+    const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    const at = e.at ?? new Date(`${weekStartRef.current}T${hhmm}+11:00`).toISOString();
+    setHistory((h) => [...h, { ...e, id: entryId(), at, actor: e.actor ?? ACTOR }]);
+  }, []);
+
   const commit = useCallback(
-    (next: RosterState, t?: Omit<Toast, "id">) => {
+    (next: RosterState, t?: Omit<Toast, "id">, kind: HistoryKind = "change") => {
+      const a = analyse(next);
+      log({
+        kind,
+        summary: t?.title ?? "Roster updated",
+        detail: t?.sub,
+        after: { critical: a.totals.counts.critical, high: a.totals.counts.high, cost: a.totals.contractCost },
+      });
       // Each history entry remembers the action that produced the state after it
       setHist((h) => ({
         past: [...h.past, { state: h.present, label: h.presentLabel }].slice(-HISTORY_LIMIT),
@@ -158,9 +226,9 @@ export function RosterProvider({ children }: { children: ReactNode }) {
         presentLabel: t?.title ?? "last change",
         future: [],
       }));
-      if (t) toast(t);
+      if (t && !t.silent) toast(t);
     },
-    [toast],
+    [toast, log],
   );
 
   const undo = useCallback(() => {
@@ -238,6 +306,34 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     },
     [state, commit],
   );
+
+  const logIncident = (i: { shiftId: string; type: string; severity: "minor" | "major" | "notifiable"; note: string }) => {
+    const sh = state.shifts.find((s) => s.id === i.shiftId);
+    const onSite = whoWasOnSite(state, i.shiftId);
+    const date = sh ? new Date(Date.parse(`${state.weekStart}T00:00:00+11:00`) + sh.day * 86_400_000 + (sh.start + 90) * 60_000).toISOString() : undefined;
+    log({
+      at: date,
+      kind: "incident",
+      severity: i.severity,
+      tenantId: sh?.tenantId,
+      shiftLabel: shiftLabel(state, i.shiftId),
+      summary: `Incident: ${i.type}`,
+      detail: i.note,
+      onSite,
+      staffIds: onSite.map((o) => o.staffId),
+    });
+    const flagged = onSite.filter((o) => !o.ok).length;
+    toast({
+      title: "Incident logged with who was on site",
+      sub: flagged ? `${flagged} of ${onSite.length} people on that shift weren't fully cleared. That's recorded too.` : `${onSite.length} ${onSite.length === 1 ? "person" : "people"} recorded, all checks current.`,
+      severity: flagged ? "high" : "ok",
+    });
+  };
+  const resetHistory = () => setHistory(SEED_HISTORY);
+  const setFlash = (ids: string[]) => {
+    setFlashState({ ids, key: Date.now() });
+    window.setTimeout(() => setFlashState((f) => (f && f.ids === ids ? null : f)), 2600);
+  };
 
   /** Resolve a drop: onto a person swaps them; onto a full shift swaps whoever gives the best result. */
   const dropOnto = (target: Hover, info: DragInfo) => {
@@ -353,6 +449,14 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     undoLabel: hist.past.length ? hist.presentLabel || "last change" : null,
     redoLabel: hist.future.length ? hist.future[0].label || "change" : null,
     commit,
+    history,
+    log,
+    logIncident,
+    resetHistory,
+    retentionMonths,
+    setRetention: setRetentionMonths,
+    flash,
+    setFlash,
     undo,
     redo,
     assign,

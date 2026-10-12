@@ -26,8 +26,12 @@ export const money = (n: number, cents = false) =>
 export const signedMoney = (n: number) => (Math.round(n) === 0 ? "$0" : `${n > 0 ? "+" : "-"}${money(Math.abs(n))}`);
 
 export function initials(name: string) {
-  const p = name.split(" ");
-  return (p[0][0] + (p[p.length - 1][0] ?? "")).toUpperCase();
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const first = (w: string) => Array.from(w)[0] ?? "";
+  // One word ("Jo") or a CJK name gets one initial, not the same letter twice
+  if (words.length === 1) return first(words[0]).toUpperCase();
+  return (first(words[0]) + first(words[words.length - 1])).toUpperCase();
 }
 
 const TYPE_HUE: Record<Staff["type"], string> = {
@@ -198,6 +202,27 @@ const PATHS = {
     </>
   ),
   chevron: <path d="M6 9l6 6 6-6" />,
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="19" cy="12" r="1.5" />
+    </>
+  ),
   calendar: (
     <>
       <rect x="3" y="5" width="18" height="16" rx="2" />

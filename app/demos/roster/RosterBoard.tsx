@@ -148,7 +148,7 @@ function WeekBoard() {
             <span>Staff</span>
             <span>{state.staff.length}</span>
           </div>
-          <input className="rg-search" placeholder="Search staff" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="rg-search" placeholder="Search staff" aria-label="Search staff" value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className="rg-filters">
             {(
               [
@@ -240,7 +240,9 @@ function PersonRow({ s }: { s: Staff }) {
     >
       <Avatar staff={s} flag={worst === "critical" || worst === "high" ? worst : null} />
       <div style={{ minWidth: 0 }}>
-        <div className="rg-person-name">{s.name}</div>
+        <div className="rg-person-name" title={s.name}>
+          {s.name}
+        </div>
         <div className="rg-person-meta">
           {TYPE_LABEL[s.type]} L{s.level}
           {visa ? ` · ${visa}` : ""}
@@ -284,7 +286,7 @@ function Row({ tenantId, preview, onAdd }: { tenantId: string; preview: Record<s
                 ))}
               </div>
             )}
-            {shifts.length === 0 && <div className="rg-cell-empty">{ph && t.id !== "common" && t.id !== "clinic" ? "Closed" : "No clean"}</div>}
+            {shifts.length === 0 && <div className="rg-cell-empty">{ph && /closed public holidays/i.test(t.window) ? "Closed" : ph ? "No clean (holiday)" : "No clean"}</div>}
             <button className="rg-cell-add" onClick={() => onAdd(day)} aria-label={`Add a shift for ${t.short} on ${DAY_SHORT[day]}`}>
               + shift
             </button>
@@ -317,6 +319,7 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
     drop ? `drop-${drop.sev}` : "",
     over ? "drop-over" : "",
     r.pulse === sh.id ? "rg-pulse" : "",
+    r.flash?.ids.includes(sh.id) ? "rg-flash" : "",
   ].join(" ");
 
   return (
@@ -324,7 +327,9 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
       role="button"
       tabIndex={0}
       className={cls}
-      style={{ ["--hue" as string]: `hsl(${hue} 55% 45%)` }}
+      style={{ ["--hue" as string]: `hsl(${hue} 55% 45%)`, ["--i" as string]: sh.day }}
+      key={r.flash?.ids.includes(sh.id) ? `f${r.flash.key}` : "s"}
+      aria-label={`${state.tenants.find((t) => t.id === sh.tenantId)?.short ?? ""}, ${sh.label}, ${formatTime(sh.start)} to ${formatTime(sh.end)}, ${ids.length} of ${sh.slots} filled${worst ? `, ${worst} issue` : ""}`}
       data-shift-id={sh.id}
       onClick={() => {
         if (!r.justDragged()) r.setDrawer({ kind: "shift", id: sh.id });
@@ -342,7 +347,7 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
         </span>
         {!sh.chargeable && <span className="num" style={{ color: "var(--rg-muted)", fontWeight: 500 }}>{cost ? money(cost) : ""}</span>}
       </div>
-      <div className="rg-shift-label">
+      <div className="rg-shift-label" title={`${sh.label} · ${shiftHours(sh)}h`}>
         {sh.label} · {shiftHours(sh)}h
       </div>
       <div className="rg-shift-slots">
