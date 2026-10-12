@@ -6,9 +6,11 @@ import { DAY_SHORT, formatDate, formatTime, publicHoliday, shiftDate } from "@/l
 import { STUDENT_FORTNIGHT_CAP, TYPE_LABEL } from "@/lib/roster/award";
 import type { DayIndex, RosterState, Severity, Shift, Staff } from "@/lib/roster/types";
 import { useRoster } from "./store";
-import { Avatar, Icon, money, useNarrow } from "./ui";
+import { Avatar, Icon, initials, money, useNarrow } from "./ui";
 
-type DropState = Severity | "ok" | "full";
+type DropSev = Severity | "ok";
+/** How a drop would land on a shift: its severity, and who it would swap out if the shift is full. */
+type DropState = { sev: DropSev; replacing?: string };
 
 // The dragged person travels in the drag data itself, so a drop still works
 // even if React state was reset mid-drag.
@@ -34,14 +36,14 @@ function readDrag(e: DragEvent): DragPayload | null {
   }
 }
 
-const DROP_TAG: Record<DropState, { text: string; bg: string }> = {
+const DROP_TAG: Record<DropSev, { text: string; bg: string }> = {
   ok: { text: "Clear", bg: "var(--rg-ok)" },
   low: { text: "Clear", bg: "var(--rg-ok)" },
   medium: { text: "Warning", bg: "var(--rg-medium)" },
   high: { text: "High risk", bg: "var(--rg-high)" },
   critical: { text: "Breach", bg: "var(--rg-critical)" },
-  full: { text: "Full", bg: "var(--rg-faint)" },
 };
+const SEV_SCORE: Record<DropSev, number> = { ok: 0, low: 1, medium: 2, high: 3, critical: 4 };
 
 export function requirementChips(state: RosterState, tenantId: string): string[] {
   const t = state.tenants.find((x) => x.id === tenantId)!;
@@ -134,10 +136,18 @@ function WeekBoard() {
       const ids = base.assignments[sh.id] ?? [];
       if (ids.includes(drag.staffId)) continue;
       if (ids.length >= sh.slots) {
-        out[sh.id] = "full";
+        // Full shift: dropping here swaps out whoever gives the best result
+        let best: { sev: DropSev; cost: number; replacing: string } | null = null;
+        for (const id of ids) {
+          const c = evaluateCandidate(base, sh.id, drag.staffId, id);
+          const sev: DropSev = c.worst ?? "ok";
+          if (!best || SEV_SCORE[sev] < SEV_SCORE[best.sev] || (sev === best.sev && c.costDelta < best.cost))
+            best = { sev, cost: c.costDelta, replacing: id };
+        }
+        if (best) out[sh.id] = { sev: best.sev, replacing: best.replacing };
         continue;
       }
-      out[sh.id] = evaluateCandidate(base, sh.id, drag.staffId).worst ?? "ok";
+      out[sh.id] = { sev: evaluateCandidate(base, sh.id, drag.staffId).worst ?? "ok" };
     }
     return out;
   }, [drag, state]);
@@ -337,11 +347,8 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
     if (!payload) return;
     const { staffId, from } = payload;
     if (from === sh.id && !replacing) return;
-    if (!replacing && ids.filter((id) => id !== staffId).length >= sh.slots) {
-      r.toast({ title: "That shift is already full", sub: "Drop onto a person to swap them out.", severity: "medium" });
-      return;
-    }
-    r.assign(sh.id, staffId, { replacing, from });
+    const swapOut = replacing ?? (ids.filter((id) => id !== staffId).length >= sh.slots ? drop?.replacing ?? ids[0] : undefined);
+    r.assign(sh.id, staffId, { replacing: swapOut, from });
   };
 
   const cls = [
@@ -349,7 +356,7 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
     worst && !drop ? `sev-${worst}` : "",
     selected ? "selected" : "",
     sh.chargeable ? "chargeable" : "",
-    drop ? `drop-${drop}` : "",
+    drop ? `drop-${drop.sev}` : "",
     over ? "drop-over" : "",
     r.pulse === sh.id ? "rg-pulse" : "",
   ].join(" ");
@@ -372,6 +379,9 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         setOver(true);
+      }}
+      onDragEnter={(e) => {
+        if (isRosterDrag(e)) e.preventDefault();
       }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => onDrop(e)}
@@ -406,10 +416,13 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
                 e.stopPropagation();
                 setOverAvatar(id);
               }}
+              onDragEnter={(e) => {
+                if (isRosterDrag(e)) e.preventDefault();
+              }}
               onDragLeave={() => setOverAvatar(null)}
               onDrop={(e) => onDrop(e, id)}
               style={{ display: "inline-flex", borderRadius: "50%" }}
-              className={overAvatar === id ? "rg-avatar-drop" : ""}
+              className={overAvatar === id || (over && !overAvatar && drop?.replacing === id) ? "rg-avatar-drop" : ""}
             >
               <Avatar staff={s} size="sm" flag={staffFlag(id)} title={`${s.name}${overAvatar === id ? " (drop to swap)" : ""}`} />
             </span>
@@ -421,7 +434,12 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
           </span>
         ))}
       </div>
-      {drop && <span className="rg-drop-tag" style={{ background: DROP_TAG[drop].bg }}>{DROP_TAG[drop].text}</span>}
+      {drop && (
+        <span className="rg-drop-tag" style={{ background: DROP_TAG[drop.sev].bg }}>
+          {drop.replacing ? `Swap ${initials(state.staff.find((x) => x.id === drop.replacing)?.name ?? "")} · ` : ""}
+          {DROP_TAG[drop.sev].text}
+        </span>
+      )}
     </div>
   );
 }

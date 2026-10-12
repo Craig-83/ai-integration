@@ -153,7 +153,9 @@ export function RosterProvider({ children }: { children: ReactNode }) {
       setPulse(shiftId);
       window.setTimeout(() => setPulse(null), 900);
       commit(next, {
-        title: `${staff.name.split(" ")[0]} → ${tenant.short}, ${DAY_SHORT[sh.day]} ${formatTime(sh.start)}`,
+        title: `${staff.name.split(" ")[0]} → ${tenant.short}, ${DAY_SHORT[sh.day]} ${formatTime(sh.start)}${
+          opts.replacing ? `, replacing ${state.staff.find((s) => s.id === opts.replacing)?.name.split(" ")[0] ?? ""}` : ""
+        }`,
         sub: worst
           ? worst.title + (ev.flags.length > 1 ? ` (+${ev.flags.length - 1} more)` : "")
           : `No issues. ${ev.costDelta >= 0 ? "Adds" : "Saves"} $${Math.abs(Math.round(ev.costDelta)).toLocaleString()} incl. on-costs.`,

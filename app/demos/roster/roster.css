@@ -209,10 +209,9 @@
 .rg-shift.drop-medium { box-shadow: 0 0 0 2px var(--rg-medium); background: var(--rg-medium-bg); }
 .rg-shift.drop-high { box-shadow: 0 0 0 2px var(--rg-high); background: var(--rg-high-bg); }
 .rg-shift.drop-critical { box-shadow: 0 0 0 2px var(--rg-critical); background: var(--rg-critical-bg); opacity: 0.85; }
-.rg-shift.drop-full { opacity: 0.45; }
 .rg-shift.drop-over { transform: scale(1.03); }
 .rg-drop-tag {
-  position: absolute; right: 5px; bottom: 5px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  position: absolute; right: 5px; bottom: 5px; white-space: nowrap; pointer-events: none; font-size: 9.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
   padding: 1px 5px; border-radius: 4px; color: #fff;
 }
 
