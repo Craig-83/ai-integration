@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type React from "react";
 import { analyse, evaluateCandidate, type Analysis } from "@/lib/roster/engine";
 import { manualRoster } from "@/lib/roster/scenarios";
 import type { Credential, RosterState, Severity } from "@/lib/roster/types";
@@ -8,6 +9,10 @@ import { DAY_SHORT, formatTime } from "@/lib/roster/dates";
 
 const STORAGE_KEY = "cm-roster-demo-v1";
 const HISTORY_LIMIT = 60;
+
+export type DragInfo = { staffId: string; from?: string };
+export type Hover = { shiftId: string | null; avatarId: string | null };
+const NO_HOVER: Hover = { shiftId: null, avatarId: null };
 
 export type Drawer =
   | { kind: "shift"; id: string; replacing?: string }
@@ -40,8 +45,13 @@ interface Store {
   toasts: Toast[];
   toast: (t: Omit<Toast, "id">) => void;
   dismiss: (id: number) => void;
-  drag: { staffId: string; from?: string } | null;
-  setDrag: (d: { staffId: string; from?: string } | null) => void;
+  drag: DragInfo | null;
+  hover: Hover;
+  /** Start a pointer drag from a person (rail row or shift avatar). */
+  beginDrag: (e: React.PointerEvent, info: DragInfo) => void;
+  /** True for a moment after a drag ends, so the release doesn't count as a click. */
+  justDragged: () => boolean;
+  ghostRef: React.RefObject<HTMLDivElement | null>;
   pulse: string | null;
 }
 
@@ -57,7 +67,11 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   const [hist, setHist] = useState(() => ({ past: [] as RosterState[], present: manualRoster(), future: [] as RosterState[] }));
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [drag, setDrag] = useState<{ staffId: string; from?: string } | null>(null);
+  const [drag, setDrag] = useState<DragInfo | null>(null);
+  const [hover, setHover] = useState<Hover>(NO_HOVER);
+  const hoverRef = useRef<Hover>(NO_HOVER);
+  const ghostRef = useRef<HTMLDivElement | null>(null);
+  const draggedAt = useRef(0);
   const [pulse, setPulse] = useState<string | null>(null);
   const seq = useRef(0);
   const loaded = useRef(false);
@@ -84,27 +98,6 @@ export function RosterProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [hist.present]);
-
-  // A drag that never gets its drop (released off-window, a flaky trackpad)
-  // must not leave the board stuck in preview mode.
-  useEffect(() => {
-    if (!drag) return;
-    const clear = () => setDrag(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") clear();
-    };
-    // Native drags suppress pointer events, so a pointerdown means it's over
-    window.addEventListener("pointerdown", clear);
-    window.addEventListener("dragend", clear);
-    window.addEventListener("drop", clear);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", clear);
-      window.removeEventListener("dragend", clear);
-      window.removeEventListener("drop", clear);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [drag]);
 
   const state = hist.present;
   const analysis = useMemo(() => analyse(state), [state]);
@@ -195,6 +188,107 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     [state, commit],
   );
 
+  /** Resolve a drop: onto a person swaps them; onto a full shift swaps whoever gives the best result. */
+  const dropOnto = (target: Hover, info: DragInfo) => {
+    const shiftId = target.shiftId;
+    if (!shiftId) return;
+    const sh = state.shifts.find((x) => x.id === shiftId);
+    if (!sh) return;
+    if (info.from === shiftId && (!target.avatarId || target.avatarId === info.staffId)) return;
+    const base: RosterState =
+      info.from && info.from !== shiftId
+        ? { ...state, assignments: { ...state.assignments, [info.from]: (state.assignments[info.from] ?? []).filter((id) => id !== info.staffId) } }
+        : state;
+    const ids = (base.assignments[shiftId] ?? []).filter((id) => id !== info.staffId);
+    let replacing = target.avatarId && target.avatarId !== info.staffId ? target.avatarId : undefined;
+    if (!replacing && ids.length >= sh.slots) replacing = bestSwap(base, shiftId, info.staffId);
+    assign(shiftId, info.staffId, { replacing, from: info.from });
+  };
+  const dropRef = useRef(dropOnto);
+  dropRef.current = dropOnto;
+
+  const beginDrag = useCallback((e: React.PointerEvent, info: DragInfo) => {
+    if (e.button !== 0) return;
+    const touch = e.pointerType === "touch";
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let active = false;
+    let holdTimer = 0;
+
+    const place = (x: number, y: number) => {
+      const g = ghostRef.current;
+      if (!g) return;
+      // The app scales itself up on very wide screens; undo that for the ghost
+      const z = parseFloat(getComputedStyle(g.parentElement ?? g).zoom || "1") || 1;
+      g.style.transform = `translate(${(x + 14) / z}px, ${(y + 14) / z}px)`;
+    };
+    const track = (x: number, y: number) => {
+      place(x, y);
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      const card = el?.closest<HTMLElement>("[data-shift-id]");
+      const av = el?.closest<HTMLElement>("[data-avatar-id]");
+      const next: Hover = { shiftId: card?.dataset.shiftId ?? null, avatarId: card && av ? av.dataset.avatarId ?? null : null };
+      const prev = hoverRef.current;
+      if (prev.shiftId !== next.shiftId || prev.avatarId !== next.avatarId) {
+        hoverRef.current = next;
+        setHover(next);
+      }
+    };
+    const activate = (x: number, y: number) => {
+      active = true;
+      document.documentElement.classList.add("rg-dragging");
+      setDrag(info);
+      requestAnimationFrame(() => track(x, y));
+    };
+    const cleanup = () => {
+      window.clearTimeout(holdTimer);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("touchmove", blockScroll);
+      document.documentElement.classList.remove("rg-dragging");
+      hoverRef.current = NO_HOVER;
+      setHover(NO_HOVER);
+      setDrag(null);
+    };
+    const move = (ev: PointerEvent) => {
+      if (!active) {
+        const d = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+        // Touch: moving before the hold completes is a scroll, not a drag
+        if (touch) {
+          if (d > 8) cleanup();
+          return;
+        }
+        if (d < 5) return;
+        activate(ev.clientX, ev.clientY);
+      }
+      track(ev.clientX, ev.clientY);
+    };
+    const up = () => {
+      if (active) {
+        draggedAt.current = Date.now();
+        dropRef.current(hoverRef.current, info);
+      }
+      cleanup();
+    };
+    const cancel = () => cleanup();
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") cleanup();
+    };
+    const blockScroll = (ev: TouchEvent) => {
+      if (active) ev.preventDefault();
+    };
+    if (touch) holdTimer = window.setTimeout(() => activate(startX, startY), 220);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", key);
+    window.addEventListener("touchmove", blockScroll, { passive: false });
+  }, []);
+
+  const justDragged = useCallback(() => Date.now() - draggedAt.current < 250, []);
+
   const value: Store = {
     state,
     analysis,
@@ -212,10 +306,25 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     toast,
     dismiss,
     drag,
-    setDrag,
+    hover,
+    beginDrag,
+    justDragged,
+    ghostRef,
     pulse,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 const rank = (s: Severity) => ({ low: 1, medium: 2, high: 3, critical: 4 })[s];
+
+/** Who to swap out of a full shift so the incoming person lands as cleanly and cheaply as possible. */
+export function bestSwap(state: RosterState, shiftId: string, staffId: string): string | undefined {
+  let best: { score: number; cost: number; id: string } | undefined;
+  for (const id of state.assignments[shiftId] ?? []) {
+    if (id === staffId) continue;
+    const c = evaluateCandidate(state, shiftId, staffId, id);
+    const score = c.worst ? rank(c.worst) : 0;
+    if (!best || score < best.score || (score === best.score && c.costDelta < best.cost)) best = { score, cost: c.costDelta, id };
+  }
+  return best?.id;
+}

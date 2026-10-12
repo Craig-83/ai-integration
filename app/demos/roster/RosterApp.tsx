@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/roster/dates";
 import { addDays } from "@/lib/roster/dates";
 import type { Severity } from "@/lib/roster/types";
 import { RosterProvider, useRoster } from "./store";
-import { Bar, Icon, money, SEV_COLOR, type IconName } from "./ui";
+import { Avatar, Bar, Icon, money, SEV_COLOR, type IconName } from "./ui";
 import { RosterBoard } from "./RosterBoard";
 import { ShiftDrawer } from "./ShiftDrawer";
 import { IssuesDrawer } from "./IssuesDrawer";
@@ -313,6 +313,16 @@ function Shell() {
         {drawer?.kind === "person" && <PersonDrawer key={drawer.id} id={drawer.id} />}
         {drawer?.kind === "tenant" && <TenantDrawer key={drawer.id} id={drawer.id} />}
       </div>
+
+      {r.drag && (() => {
+        const s = state.staff.find((x) => x.id === r.drag!.staffId);
+        return s ? (
+          <div ref={r.ghostRef} className="rg-ghost" aria-hidden="true">
+            <Avatar staff={s} size="sm" />
+            <span>{s.name}</span>
+          </div>
+        ) : null;
+      })()}
 
       <div className="rg-toasts" aria-live="polite">
         {r.toasts.map((x) => (

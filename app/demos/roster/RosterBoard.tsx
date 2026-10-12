@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type DragEvent } from "react";
+import { useMemo, useState } from "react";
 import { evaluateCandidate, RANK_LABEL, shiftHours, worstSeverity } from "@/lib/roster/engine";
 import { DAY_SHORT, formatDate, formatTime, publicHoliday, shiftDate } from "@/lib/roster/dates";
 import { STUDENT_FORTNIGHT_CAP, TYPE_LABEL } from "@/lib/roster/award";
@@ -11,30 +11,6 @@ import { Avatar, Icon, initials, money, useNarrow } from "./ui";
 type DropSev = Severity | "ok";
 /** How a drop would land on a shift: its severity, and who it would swap out if the shift is full. */
 type DropState = { sev: DropSev; replacing?: string };
-
-// The dragged person travels in the drag data itself, so a drop still works
-// even if React state was reset mid-drag.
-const DRAG_TYPE = "application/x-roster-staff";
-type DragPayload = { staffId: string; from?: string };
-
-function startDrag(e: DragEvent, payload: DragPayload) {
-  e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(payload));
-  e.dataTransfer.setData("text/plain", payload.staffId);
-  e.dataTransfer.effectAllowed = "move";
-}
-
-function isRosterDrag(e: DragEvent) {
-  return Array.from(e.dataTransfer.types).includes(DRAG_TYPE);
-}
-
-function readDrag(e: DragEvent): DragPayload | null {
-  try {
-    const raw = e.dataTransfer.getData(DRAG_TYPE);
-    return raw ? (JSON.parse(raw) as DragPayload) : null;
-  } catch {
-    return null;
-  }
-}
 
 const DROP_TAG: Record<DropSev, { text: string; bg: string }> = {
   ok: { text: "Clear", bg: "var(--rg-ok)" },
@@ -241,7 +217,7 @@ function WeekBoard() {
 }
 
 function PersonRow({ s }: { s: Staff }) {
-  const { analysis, setDrag, drag, setDrawer, state } = useRoster();
+  const { analysis, beginDrag, justDragged, drag, setDrawer, state } = useRoster();
   const w = analysis.weeks[s.id];
   const worst = worstSeverity(analysis.byStaff[s.id] ?? []);
   const visa =
@@ -256,14 +232,10 @@ function PersonRow({ s }: { s: Staff }) {
   return (
     <div
       className={`rg-person ${drag?.staffId === s.id && !drag.from ? "dragging" : ""}`}
-      draggable
-      onDragStart={(e) => {
-        startDrag(e, { staffId: s.id });
-        // Rendering the drop preview inside dragstart can make Chrome abort the drag
-        window.setTimeout(() => setDrag({ staffId: s.id }), 0);
+      onPointerDown={(e) => beginDrag(e, { staffId: s.id })}
+      onClick={() => {
+        if (!justDragged()) setDrawer({ kind: "person", id: s.id });
       }}
-      onDragEnd={() => setDrag(null)}
-      onClick={() => setDrawer({ kind: "person", id: s.id })}
       title="Drag onto a shift, or click for details"
     >
       <Avatar staff={s} flag={worst === "critical" || worst === "high" ? worst : null} />
@@ -325,9 +297,9 @@ function Row({ tenantId, preview, onAdd }: { tenantId: string; preview: Record<s
 
 function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState }) {
   const r = useRoster();
-  const { state, analysis, drawer, drag } = r;
-  const [over, setOver] = useState(false);
-  const [overAvatar, setOverAvatar] = useState<string | null>(null);
+  const { state, analysis, drawer, drag, hover } = r;
+  const over = !!drag && hover.shiftId === sh.id;
+  const overAvatar = over ? hover.avatarId : null;
   const ids = state.assignments[sh.id] ?? [];
   const flags = analysis.byShift[sh.id] ?? [];
   const worst = worstSeverity(flags);
@@ -336,20 +308,6 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
 
   const staffFlag = (id: string) =>
     worstSeverity((analysis.byStaff[id] ?? []).filter((f) => f.shiftId === sh.id || !f.shiftId));
-
-  const onDrop = (e: DragEvent, replacing?: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOver(false);
-    setOverAvatar(null);
-    const payload = readDrag(e) ?? drag;
-    r.setDrag(null);
-    if (!payload) return;
-    const { staffId, from } = payload;
-    if (from === sh.id && !replacing) return;
-    const swapOut = replacing ?? (ids.filter((id) => id !== staffId).length >= sh.slots ? drop?.replacing ?? ids[0] : undefined);
-    r.assign(sh.id, staffId, { replacing: swapOut, from });
-  };
 
   const cls = [
     "rg-shift",
@@ -367,24 +325,16 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
       tabIndex={0}
       className={cls}
       style={{ ["--hue" as string]: `hsl(${hue} 55% 45%)` }}
-      onClick={() => r.setDrawer({ kind: "shift", id: sh.id })}
+      data-shift-id={sh.id}
+      onClick={() => {
+        if (!r.justDragged()) r.setDrawer({ kind: "shift", id: sh.id });
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           r.setDrawer({ kind: "shift", id: sh.id });
         }
       }}
-      onDragOver={(e) => {
-        if (!isRosterDrag(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        setOver(true);
-      }}
-      onDragEnter={(e) => {
-        if (isRosterDrag(e)) e.preventDefault();
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => onDrop(e)}
     >
       <div className="rg-shift-time">
         <span>
@@ -402,27 +352,13 @@ function ShiftCard({ sh, hue, drop }: { sh: Shift; hue: number; drop?: DropState
           return (
             <span
               key={id}
-              draggable
-              onDragStart={(e) => {
+              data-avatar-id={id}
+              onPointerDown={(e) => {
                 e.stopPropagation();
-                startDrag(e, { staffId: id, from: sh.id });
-                window.setTimeout(() => r.setDrag({ staffId: id, from: sh.id }), 0);
+                r.beginDrag(e, { staffId: id, from: sh.id });
               }}
-              onDragEnd={() => r.setDrag(null)}
-              onDragOver={(e) => {
-                if (!isRosterDrag(e) || drag?.staffId === id) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                e.stopPropagation();
-                setOverAvatar(id);
-              }}
-              onDragEnter={(e) => {
-                if (isRosterDrag(e)) e.preventDefault();
-              }}
-              onDragLeave={() => setOverAvatar(null)}
-              onDrop={(e) => onDrop(e, id)}
               style={{ display: "inline-flex", borderRadius: "50%" }}
-              className={overAvatar === id || (over && !overAvatar && drop?.replacing === id) ? "rg-avatar-drop" : ""}
+              className={`rg-avatar-handle ${overAvatar === id || (over && !overAvatar && drop?.replacing === id) ? "rg-avatar-drop" : ""}`}
             >
               <Avatar staff={s} size="sm" flag={staffFlag(id)} title={`${s.name}${overAvatar === id ? " (drop to swap)" : ""}`} />
             </span>
