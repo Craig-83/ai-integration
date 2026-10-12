@@ -34,6 +34,9 @@ interface Store {
   analysis: Analysis;
   canUndo: boolean;
   canRedo: boolean;
+  /** What the next undo / redo will reverse, for button labels */
+  undoLabel: string | null;
+  redoLabel: string | null;
   commit: (next: RosterState, toast?: Omit<Toast, "id">) => void;
   undo: () => void;
   redo: () => void;
@@ -64,7 +67,8 @@ export function useRoster() {
 }
 
 export function RosterProvider({ children }: { children: ReactNode }) {
-  const [hist, setHist] = useState(() => ({ past: [] as RosterState[], present: manualRoster(), future: [] as RosterState[] }));
+  type Entry = { state: RosterState; label: string };
+  const [hist, setHist] = useState(() => ({ past: [] as Entry[], present: manualRoster(), presentLabel: "", future: [] as Entry[] }));
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [drag, setDrag] = useState<DragInfo | null>(null);
@@ -82,7 +86,7 @@ export function RosterProvider({ children }: { children: ReactNode }) {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const saved = JSON.parse(raw) as RosterState;
-        if (saved?.weekStart && Array.isArray(saved.shifts)) setHist({ past: [], present: saved, future: [] });
+        if (saved?.weekStart && Array.isArray(saved.shifts)) setHist({ past: [], present: saved, presentLabel: "", future: [] });
       }
     } catch {
       /* private mode or corrupt: start from the scenario */
@@ -114,17 +118,31 @@ export function RosterProvider({ children }: { children: ReactNode }) {
 
   const commit = useCallback(
     (next: RosterState, t?: Omit<Toast, "id">) => {
-      setHist((h) => ({ past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [] }));
+      // Each history entry remembers the action that produced the state after it
+      setHist((h) => ({
+        past: [...h.past, { state: h.present, label: h.presentLabel }].slice(-HISTORY_LIMIT),
+        present: next,
+        presentLabel: t?.title ?? "last change",
+        future: [],
+      }));
       if (t) toast(t);
     },
     [toast],
   );
 
   const undo = useCallback(() => {
-    setHist((h) => (h.past.length ? { past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future] } : h));
+    setHist((h) => {
+      if (!h.past.length) return h;
+      const prev = h.past[h.past.length - 1];
+      return { past: h.past.slice(0, -1), present: prev.state, presentLabel: prev.label, future: [{ state: h.present, label: h.presentLabel }, ...h.future] };
+    });
   }, []);
   const redo = useCallback(() => {
-    setHist((h) => (h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h));
+    setHist((h) => {
+      if (!h.future.length) return h;
+      const next = h.future[0];
+      return { past: [...h.past, { state: h.present, label: h.presentLabel }], present: next.state, presentLabel: next.label, future: h.future.slice(1) };
+    });
   }, []);
 
   const assign = useCallback(
@@ -299,6 +317,8 @@ export function RosterProvider({ children }: { children: ReactNode }) {
     analysis,
     canUndo: hist.past.length > 0,
     canRedo: hist.future.length > 0,
+    undoLabel: hist.past.length ? hist.presentLabel || "last change" : null,
+    redoLabel: hist.future.length ? hist.future[0].label || "change" : null,
     commit,
     undo,
     redo,

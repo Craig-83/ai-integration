@@ -477,3 +477,8 @@ html.rg-dragging, html.rg-dragging * { cursor: grabbing !important; user-select:
   background: #0f1526; color: #f5f0e8; font-family: var(--rg-ui); font-size: 13px; font-weight: 600; white-space: nowrap;
   box-shadow: 0 10px 30px rgba(10, 15, 28, 0.35);
 }
+
+/* undo is always reachable and says what it will undo */
+.rg-undo { padding: 0 12px 0 10px; }
+.rg-undo:not(:disabled) { border-color: rgba(201, 168, 76, 0.55); }
+@media (max-width: 760px) { .rg-undo-label { display: none; } .rg-undo { padding: 0 10px; } }

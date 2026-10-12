@@ -43,6 +43,21 @@ function Shell() {
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const doUndo = () => {
+    if (!r.canUndo) return;
+    const label = r.undoLabel;
+    // Older "you did X, undo?" messages no longer describe the board
+    r.toasts.filter((x) => x.undo).forEach((x) => r.dismiss(x.id));
+    r.undo();
+    r.toast({ title: `Undone: ${label}`, sub: "Redo with ⇧⌘Z or the arrow next to Undo." });
+  };
+  const doRedo = () => {
+    if (!r.canRedo) return;
+    const label = r.redoLabel;
+    r.redo();
+    r.toast({ title: `Redone: ${label}` });
+  };
+
   const runAuto = () => {
     const next = autoRoster(state, { keepExisting: false });
     const a = analyse(next);
@@ -119,14 +134,17 @@ function Shell() {
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        if (e.shiftKey) r.redo();
-        else r.undo();
+        if (e.shiftKey) doRedo();
+        else doUndo();
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "Escape") {
-        setDrawer(null);
-        setMenu(false);
+        // Escape closes whatever is open; with nothing open it undoes the last change
+        if (drawer || menu) {
+          setDrawer(null);
+          setMenu(false);
+        } else if (!document.querySelector(".rg-modal-wrap")) doUndo();
       } else if (e.key === "a") runAuto();
       else if (e.key === "f") runFix();
       else if (e.key === "d") setMenu((m) => !m);
@@ -174,10 +192,17 @@ function Shell() {
           ))}
         </nav>
         <div className="rg-head-actions">
-          <button className="rg-btn rg-btn-dark rg-icon-btn rg-hide-sm" onClick={r.undo} disabled={!r.canUndo} title="Undo (⌘Z)" aria-label="Undo">
+          <button
+            className="rg-btn rg-btn-dark rg-undo"
+            onClick={doUndo}
+            disabled={!r.canUndo}
+            title={r.undoLabel ? `Undo: ${r.undoLabel} (⌘Z or Esc)` : "Nothing to undo"}
+            aria-label={r.undoLabel ? `Undo: ${r.undoLabel}` : "Undo"}
+          >
             <Icon name="undo" />
+            <span className="rg-undo-label">Undo</span>
           </button>
-          <button className="rg-btn rg-btn-dark rg-icon-btn rg-hide-sm" onClick={r.redo} disabled={!r.canRedo} title="Redo (⇧⌘Z)" aria-label="Redo">
+          <button className="rg-btn rg-btn-dark rg-icon-btn rg-hide-sm" onClick={doRedo} disabled={!r.canRedo} title={r.redoLabel ? `Redo: ${r.redoLabel} (⇧⌘Z)` : "Nothing to redo"} aria-label="Redo">
             <Icon name="redo" />
           </button>
           <div ref={menuRef} style={{ position: "relative" }}>
@@ -336,8 +361,8 @@ function Shell() {
               <button
                 className="rg-btn rg-btn-sm"
                 onClick={() => {
-                  r.undo();
                   r.dismiss(x.id);
+                  doUndo();
                 }}
               >
                 Undo
