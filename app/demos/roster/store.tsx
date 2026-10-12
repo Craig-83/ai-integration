@@ -110,7 +110,7 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   const toast = useCallback(
     (t: Omit<Toast, "id">) => {
       const id = ++seq.current;
-      setToasts((cur) => [...cur.slice(-2), { ...t, id }]);
+      setToasts((cur) => [...cur.slice(-1), { ...t, id }]);
       window.setTimeout(() => dismiss(id), t.severity === "critical" || t.severity === "high" ? 7000 : 4500);
     },
     [dismiss],

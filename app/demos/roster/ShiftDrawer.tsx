@@ -34,6 +34,22 @@ export function ShiftDrawer({ id, replacing: asked }: { id: string; replacing?: 
   if (!sh) return null;
 
   const tenant = state.tenants.find((t) => t.id === sh.tenantId)!;
+  const setSlots = (n: number) => {
+    const hrs = shiftHours(sh);
+    r.commit(
+      { ...state, shifts: state.shifts.map((x) => (x.id === sh.id ? { ...x, slots: n } : x)) },
+      {
+        title: `${tenant.short}, ${DAY_LONG[sh.day]}: ${n} ${n === 1 ? "cleaner" : "cleaners"} needed`,
+        sub:
+          n > sh.slots
+            ? `Adds ${hrs} labour hours${sh.chargeable ? " to the client's bill." : " to the contract. Pick someone from the matches below."}`
+            : ids.length > n
+              ? `${ids.length - n} more rostered than needed now. Remove someone, or keep them as overstaffing.`
+              : `Saves ${hrs} labour hours.`,
+        undo: true,
+      },
+    );
+  };
   const date = shiftDate(state.weekStart, sh.day);
   const ph = publicHoliday(date);
   const ids = state.assignments[sh.id] ?? [];
@@ -71,6 +87,34 @@ export function ShiftDrawer({ id, replacing: asked }: { id: string; replacing?: 
       </div>
 
       <div className="rg-drawer-body">
+        <div className="rg-section rg-headcount">
+          <div>
+            <div className="rg-row-name">Cleaners needed</div>
+            <div className="rg-row-meta">
+              {sh.slots * shiftHours(sh)} labour hours{sh.chargeable ? ", billed to the client" : " against the contract"}
+            </div>
+          </div>
+          <div className="rg-stepper" role="group" aria-label="Cleaners needed">
+            <button
+              className="rg-btn rg-btn-sm rg-icon-btn"
+              aria-label="One fewer cleaner"
+              disabled={sh.slots <= 1}
+              onClick={() => setSlots(sh.slots - 1)}
+            >
+              −
+            </button>
+            <span className="num" aria-live="polite">{sh.slots}</span>
+            <button
+              className="rg-btn rg-btn-sm rg-icon-btn"
+              aria-label="One more cleaner"
+              disabled={sh.slots >= 8}
+              onClick={() => setSlots(sh.slots + 1)}
+            >
+              +
+            </button>
+          </div>
+        </div>
+
         {shiftFlags.length > 0 && (
           <div className="rg-section">
             {shiftFlags.map((f) => (
