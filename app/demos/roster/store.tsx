@@ -80,8 +80,41 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0);
   const loaded = useRef(false);
 
+  // Dev-only stress data (break-ui): ?data=worst|empty|one swaps the fixture and bypasses
+  // saved state; ?data=demo clears saved state. Stripped from production builds.
+  const devData = useRef<string | null>(null);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    const apply = () => {
+      const want = new URLSearchParams(window.location.search).get("data");
+      devData.current = want === "worst" || want === "empty" || want === "one" ? want : null;
+      if (want === "demo") {
+        try {
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+        setHist({ past: [], present: manualRoster(), presentLabel: "", future: [] });
+      } else if (devData.current) {
+        const id = devData.current as "worst" | "empty" | "one";
+        void import("@/lib/roster/seed-worst").then((m) => setHist({ past: [], present: m.devFixture(id), presentLabel: "", future: [] }));
+      }
+    };
+    apply();
+    window.addEventListener("rg-dev-data", apply);
+    window.addEventListener("popstate", apply);
+    return () => {
+      window.removeEventListener("rg-dev-data", apply);
+      window.removeEventListener("popstate", apply);
+    };
+  }, []);
+
   // Restore after mount so server and client render the same first frame
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && new URLSearchParams(window.location.search).has("data")) {
+      loaded.current = true;
+      return;
+    }
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -95,7 +128,7 @@ export function RosterProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!loaded.current || devData.current) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(hist.present));
     } catch {

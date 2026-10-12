@@ -17,6 +17,7 @@ import { PeopleView } from "./PeopleView";
 import { InductionsView } from "./InductionsView";
 import { SitesView, TenantDrawer } from "./SitesView";
 import { ContractView } from "./ContractView";
+import { DevDataToggle } from "./DevDataToggle";
 import { SEVERITY_LABEL } from "@/lib/roster/engine";
 
 type Tab = "roster" | "people" | "inductions" | "sites" | "contract";
@@ -348,6 +349,8 @@ function Shell() {
           </div>
         ) : null;
       })()}
+
+      {process.env.NODE_ENV !== "production" && <DevDataToggle />}
 
       <div className="rg-toasts" aria-live="polite">
         {r.toasts.map((x) => (
