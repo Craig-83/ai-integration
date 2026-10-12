@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { SEVERITY_LABEL } from "@/lib/roster/engine";
 import type { Flag, Severity, Staff } from "@/lib/roster/types";
 
@@ -95,7 +95,7 @@ export function Bar({ value, max, color }: { value: number; max: number; color?:
   const over = value > max;
   return (
     <div className="rg-bar">
-      <span style={{ width: `${pct}%`, background: color ?? (over ? "var(--rg-critical)" : pct > 95 ? "var(--rg-medium)" : "var(--rg-ok)") }} />
+      <span style={{ transform: `scaleX(${pct / 100})`, background: color ?? (over ? "var(--rg-critical)" : pct > 95 ? "var(--rg-medium)" : "var(--rg-ok)") }} />
     </div>
   );
 }
@@ -106,7 +106,9 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
   );
 }
 
-export function Icon({ name, size = 16 }: { name: keyof typeof PATHS; size?: number }) {
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {PATHS[name]}
@@ -196,6 +198,34 @@ const PATHS = {
     </>
   ),
   chevron: <path d="M6 9l6 6 6-6" />,
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
+    </>
+  ),
+  building: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="1" />
+      <path d="M9 7h1" />
+      <path d="M14 7h1" />
+      <path d="M9 11h1" />
+      <path d="M14 11h1" />
+      <path d="M9 15h1" />
+      <path d="M14 15h1" />
+      <path d="M11 21v-3h2v3" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4 20V10" />
+      <path d="M10 20V4" />
+      <path d="M16 20v-7" />
+      <path d="M22 20H2" />
+    </>
+  ),
   badge: (
     <>
       <rect x="4" y="3" width="16" height="18" rx="2" />
@@ -204,3 +234,17 @@ const PATHS = {
     </>
   ),
 };
+
+
+/** True below the phone breakpoint. Starts false so server and first client render match. */
+export function useNarrow(query = "(max-width: 760px)") {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return narrow;
+}

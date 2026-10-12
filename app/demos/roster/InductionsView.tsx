@@ -56,7 +56,7 @@ export function InductionsView() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+      <div className="rg-cols-3" style={{ marginBottom: 16 }}>
         <div className="rg-card">
           <div className="rg-kpi-label">Rostered without an induction</div>
           <div className="rg-kpi-value num" style={{ color: rosteredWithout.length ? "var(--rg-high)" : "var(--rg-ok)" }}>{rosteredWithout.length}</div>
@@ -94,7 +94,7 @@ export function InductionsView() {
         </div>
       </div>
 
-      <table className="rg-table rg-matrix">
+      <div className="rg-scroll-x"><table className="rg-table rg-matrix">
         <thead>
           <tr>
             <th>Staff</th>
@@ -147,7 +147,7 @@ export function InductionsView() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       {record && <RecordInductionModal staffId={record.staffId} preset={record.key} onClose={() => setRecord(null)} />}
     </div>
   );

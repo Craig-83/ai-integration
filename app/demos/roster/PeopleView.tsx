@@ -39,7 +39,7 @@ export function PeopleView() {
           ))}
         </div>
       </div>
-      <table className="rg-table">
+      <div className="rg-scroll-x"><table className="rg-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -131,7 +131,7 @@ export function PeopleView() {
             );
           })}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }

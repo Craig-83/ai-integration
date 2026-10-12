@@ -6,7 +6,7 @@ import { DAY_SHORT, formatDate, formatTime, publicHoliday, shiftDate } from "@/l
 import { STUDENT_FORTNIGHT_CAP, TYPE_LABEL } from "@/lib/roster/award";
 import type { DayIndex, RosterState, Severity, Shift, Staff } from "@/lib/roster/types";
 import { useRoster } from "./store";
-import { Avatar, Icon, money } from "./ui";
+import { Avatar, Icon, money, useNarrow } from "./ui";
 
 type DropState = Severity | "ok" | "full";
 
@@ -29,6 +29,70 @@ export function requirementChips(state: RosterState, tenantId: string): string[]
 }
 
 export function RosterBoard() {
+  const narrow = useNarrow();
+  return narrow ? <DayView /> : <WeekBoard />;
+}
+
+/** Phones: one day at a time, tenants stacked, every shift full width. */
+function DayView() {
+  const { state, analysis } = useRoster();
+  const [day, setDay] = useState<DayIndex>(0);
+  const dayCost = (d: number) => state.shifts.filter((s) => s.day === d).reduce((a, s) => a + (analysis.shiftCost[s.id] ?? 0), 0);
+  const daySev = (d: number) => worstSeverity(state.shifts.filter((s) => s.day === d).flatMap((s) => analysis.byShift[s.id] ?? []));
+  const date = shiftDate(state.weekStart, day);
+  const ph = publicHoliday(date);
+  return (
+    <div className="rg-dayview">
+      <div className="rg-daypicker" role="tablist" aria-label="Day">
+        {DAY_SHORT.map((d, i) => {
+          const sev = daySev(i);
+          return (
+            <button key={d} role="tab" aria-selected={day === i} className="rg-daychip" onClick={() => setDay(i as DayIndex)}>
+              <span className="rg-daychip-d">{d}</span>
+              <span className="rg-daychip-n">{formatDate(shiftDate(state.weekStart, i as DayIndex)).split(" ")[0]}</span>
+              {sev && (sev === "critical" || sev === "high") && <span className="rg-dot" style={{ background: sev === "critical" ? "var(--rg-critical)" : "var(--rg-high)" }} />}
+            </button>
+          );
+        })}
+      </div>
+      <div className="rg-dayhead">
+        <div>
+          <b>{formatDate(date, true)}</b>
+          {ph && <span className="rg-ph" style={{ marginLeft: 8, marginTop: 0 }}>{ph}</span>}
+        </div>
+        <span className="num">{money(dayCost(day))}</span>
+      </div>
+      {state.tenants.map((t) => {
+        const shifts = state.shifts.filter((s) => s.tenantId === t.id && s.day === day).sort((a, b) => a.start - b.start);
+        if (shifts.length === 0) return null;
+        return (
+          <section key={t.id} className="rg-daygroup">
+            <div className="rg-rowhead-name">
+              <span className="rg-dot" style={{ background: `hsl(${t.hue} 55% 45%)`, width: 9, height: 9 }} />
+              {t.short}
+              <span style={{ color: "var(--rg-muted)", fontWeight: 500, fontSize: 12 }}>{t.floors}</span>
+            </div>
+            <div className="rg-reqs">
+              {requirementChips(state, t.id).map((c) => (
+                <span key={c} className="rg-chip">
+                  {c}
+                </span>
+              ))}
+            </div>
+            <div className="rg-daygroup-shifts">
+              {shifts.map((sh) => (
+                <ShiftCard key={sh.id} sh={sh} hue={t.hue} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      <p className="rg-dayview-hint">Tap a shift to see who can take it, what it costs, and what it would break.</p>
+    </div>
+  );
+}
+
+function WeekBoard() {
   const r = useRoster();
   const { state, analysis, drag } = r;
   const [query, setQuery] = useState("");
@@ -207,9 +271,13 @@ function Row({ tenantId, preview, onAdd }: { tenantId: string; preview: Record<s
         const ph = publicHoliday(shiftDate(state.weekStart, day));
         return (
           <div key={i} className={`rg-cell ${ph ? "ph" : ""}`}>
-            {shifts.map((sh) => (
-              <ShiftCard key={sh.id} sh={sh} hue={t.hue} drop={preview?.[sh.id]} />
-            ))}
+            {shifts.length > 0 && (
+              <div className="rg-cell-shifts">
+                {shifts.map((sh) => (
+                  <ShiftCard key={sh.id} sh={sh} hue={t.hue} drop={preview?.[sh.id]} />
+                ))}
+              </div>
+            )}
             {shifts.length === 0 && <div className="rg-cell-empty">{ph && t.id !== "common" && t.id !== "clinic" ? "Closed" : "No clean"}</div>}
             <button className="rg-cell-add" onClick={() => onAdd(day)} aria-label={`Add a shift for ${t.short} on ${DAY_SHORT[day]}`}>
               + shift

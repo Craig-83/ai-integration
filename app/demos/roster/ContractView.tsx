@@ -51,7 +51,7 @@ export function ContractView() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="rg-cols-4">
         <div className="rg-card">
           <div className="rg-kpi-label">Annual contract</div>
           <div className="rg-kpi-value num">{money(c.annualLabourBudget)}</div>
@@ -126,7 +126,7 @@ export function ContractView() {
         </svg>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 12, marginTop: 12 }}>
+      <div className="rg-cols-2" style={{ marginTop: 12 }}>
         <div className="rg-card">
           <div className="rg-section-title">Client-requested work this week</div>
           {variations.length === 0 ? (
@@ -202,7 +202,7 @@ export function ContractView() {
           <span>{AWARD_NAME}</span>
           <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}>Rates as at {RATES_AS_AT} · Victoria</span>
         </div>
-        <table className="rg-table" style={{ fontSize: 13 }}>
+        <div className="rg-scroll-x"><table className="rg-table" style={{ fontSize: 13 }}>
           <thead>
             <tr>
               <th>% of ordinary rate</th>
@@ -231,7 +231,7 @@ export function ContractView() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
         <div style={{ fontSize: 12, color: "var(--rg-muted)", marginTop: 8 }}>
           Ordinary hourly rate: Level 1 ${BASE_HOURLY[1].toFixed(2)}, Level 2 ${BASE_HOURLY[2].toFixed(2)}, Level 3 ${BASE_HOURLY[3].toFixed(2)}. Overtime for part-time and casual staff kicks in over 7.6 hours a day, 38 a week, or a sixth day. Minimum engagement 4 hours at sites over 5,000 sqm. 8 hours off between shifts.
         </div>

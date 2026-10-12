@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/roster/dates";
 import { addDays } from "@/lib/roster/dates";
 import type { Severity } from "@/lib/roster/types";
 import { RosterProvider, useRoster } from "./store";
-import { Bar, Icon, money, SEV_COLOR } from "./ui";
+import { Bar, Icon, money, SEV_COLOR, type IconName } from "./ui";
 import { RosterBoard } from "./RosterBoard";
 import { ShiftDrawer } from "./ShiftDrawer";
 import { IssuesDrawer } from "./IssuesDrawer";
@@ -20,12 +20,12 @@ import { ContractView } from "./ContractView";
 import { SEVERITY_LABEL } from "@/lib/roster/engine";
 
 type Tab = "roster" | "people" | "inductions" | "sites" | "contract";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "roster", label: "Roster" },
-  { id: "people", label: "People" },
-  { id: "inductions", label: "Inductions" },
-  { id: "sites", label: "Tenants" },
-  { id: "contract", label: "Contract" },
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: "roster", label: "Roster", icon: "calendar" },
+  { id: "people", label: "People", icon: "users" },
+  { id: "inductions", label: "Inductions", icon: "badge" },
+  { id: "sites", label: "Tenants", icon: "building" },
+  { id: "contract", label: "Contract", icon: "chart" },
 ];
 
 export default function RosterApp() {
@@ -167,21 +167,22 @@ function Shell() {
         <nav className="rg-tabs" role="tablist">
           {TABS.map((x, i) => (
             <button key={x.id} role="tab" aria-selected={tab === x.id} className="rg-tab" onClick={() => setTab(x.id)}>
-              {x.label}
+              <Icon name={x.icon} size={18} />
+              <span>{x.label}</span>
               <kbd>{i + 1}</kbd>
             </button>
           ))}
         </nav>
         <div className="rg-head-actions">
-          <button className="rg-btn rg-btn-dark rg-icon-btn" onClick={r.undo} disabled={!r.canUndo} title="Undo (⌘Z)" aria-label="Undo">
+          <button className="rg-btn rg-btn-dark rg-icon-btn rg-hide-sm" onClick={r.undo} disabled={!r.canUndo} title="Undo (⌘Z)" aria-label="Undo">
             <Icon name="undo" />
           </button>
-          <button className="rg-btn rg-btn-dark rg-icon-btn" onClick={r.redo} disabled={!r.canRedo} title="Redo (⇧⌘Z)" aria-label="Redo">
+          <button className="rg-btn rg-btn-dark rg-icon-btn rg-hide-sm" onClick={r.redo} disabled={!r.canRedo} title="Redo (⇧⌘Z)" aria-label="Redo">
             <Icon name="redo" />
           </button>
           <div ref={menuRef} style={{ position: "relative" }}>
-            <button className="rg-btn rg-btn-dark" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
-              <Icon name="play" size={13} /> Scenarios <Icon name="chevron" size={14} />
+            <button className="rg-btn rg-btn-dark" onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-label="Scenarios">
+              <Icon name="play" size={13} /> <span className="rg-label">Scenarios</span> <Icon name="chevron" size={14} />
             </button>
             {menu && (
               <div className="rg-menu" role="menu">
@@ -223,11 +224,11 @@ function Shell() {
               </div>
             )}
           </div>
-          <button className="rg-btn rg-btn-dark" onClick={runFix} title="Fix everything (F)" disabled={serious === 0}>
-            <Icon name="wand" size={15} /> Fix everything
+          <button className="rg-btn rg-btn-dark" onClick={runFix} title="Fix everything (F)" aria-label="Fix everything" disabled={serious === 0}>
+            <Icon name="wand" size={15} /> <span className="rg-label">Fix everything</span>
           </button>
-          <button className="rg-btn rg-btn-gold" onClick={runAuto} title="Auto-roster (A)">
-            <Icon name="sparkles" size={15} /> Auto-roster
+          <button className="rg-btn rg-btn-gold" onClick={runAuto} title="Auto-roster (A)" aria-label="Auto-roster">
+            <Icon name="sparkles" size={15} /> <span className="rg-label">Auto-roster</span><span className="rg-label-sm">Auto</span>
           </button>
         </div>
       </header>
@@ -299,7 +300,7 @@ function Shell() {
         </div>
       </section>
 
-      <div className="rg-main no-rail" style={{ minHeight: 0 }}>
+      <div className="rg-main" style={{ minHeight: 0 }}>
         {tab === "roster" && <RosterBoard />}
         {tab === "people" && <PeopleView />}
         {tab === "inductions" && <InductionsView />}
@@ -316,6 +317,7 @@ function Shell() {
       <div className="rg-toasts" aria-live="polite">
         {r.toasts.map((x) => (
           <div key={x.id} className="rg-toast" style={{ ["--c" as string]: x.severity && x.severity !== "ok" ? SEV_COLOR[x.severity] : x.severity === "ok" ? "var(--rg-ok)" : undefined }}>
+            <span className="rg-toast-dot" aria-hidden="true" />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="rg-toast-title">{x.title}</div>
               {x.sub && <div className="rg-toast-sub">{x.sub}</div>}
