@@ -45,7 +45,9 @@ export type PriceShape =
   /** Open-ended monthly floor, for a tier whose ceiling depends on usage. */
   | { kind: "monthlyFrom"; min: number }
   /** Day rate, booked as needed rather than committed monthly. */
-  | { kind: "daily"; amount: number };
+  | { kind: "daily"; amount: number }
+  /** Hourly floor, for small jobs quoted by the hour. */
+  | { kind: "hourlyFrom"; min: number };
 
 export type PricingPhase = {
   /** Stable key for lookups. Safe to use in analytics and URLs. */
@@ -180,6 +182,111 @@ export const SUPPORT_TIERS: readonly SupportTier[] = [
   },
 ] as const;
 
+/**
+ * Hourly rate for small, well-defined jobs that don't warrant a phased
+ * engagement: website changes, a single automation, tool setup, training.
+ *
+ * Deliberately NOT one of PRICING_PHASES, so PHASE_COUNT and the "N phases"
+ * copy are unaffected. It is a "from" price because the support tiers above
+ * work out at more per hour for committed, on-call cover; small project work
+ * is the floor, not the only rate.
+ *
+ * The quote skill (~/.claude/skills/quote) syncs this value, so change it
+ * here rather than in the skill.
+ */
+export const HOURLY_RATE = {
+  id: "hourly",
+  name: "Hourly work",
+  price: { kind: "hourlyFrom", min: 100 },
+  priceDisplay: "From AUD $100/hr",
+  schemaDescription:
+    "Small, well-defined jobs quoted by the hour: website changes, single automations, tool setup and training.",
+} as const satisfies {
+  id: string;
+  name: string;
+  price: PriceShape;
+  priceDisplay: string;
+  schemaDescription: string;
+};
+
+/**
+ * SEO and AEO (answer engine optimisation) retainers: being found on Google
+ * and being cited by AI assistants. Every tier covers both.
+ *
+ * Priced at the HOURLY_RATE floor for the included hours, so the ladder is
+ * flat per hour by design: the step up buys more output (articles, pages,
+ * tracked questions), not a cheaper rate. Like HOURLY_RATE these are offers,
+ * not phases, so they sit outside PRICING_PHASES.
+ *
+ * The quote skill (~/.claude/skills/quote) syncs these values.
+ */
+export type SeoAeoTier = {
+  id: "foundation" | "growth" | "authority";
+  name: string;
+  price: PriceShape;
+  priceDisplay: string;
+  hoursPerMonth: number;
+  bestFor: string;
+  includes: readonly string[];
+  schemaDescription: string;
+};
+
+export const SEO_AEO_MIN_TERM_MONTHS = 3;
+
+export const SEO_AEO_TIERS: readonly SeoAeoTier[] = [
+  {
+    id: "foundation",
+    name: "SEO & AEO Foundation",
+    price: { kind: "monthlyFrom", min: 500 },
+    priceDisplay: "AUD $500/mo",
+    hoursPerMonth: 5,
+    bestFor: "One location, getting the basics right",
+    includes: [
+      "Technical SEO fixes",
+      "Google Business Profile kept current",
+      "Schema markup and llms.txt maintained for AI search",
+      "Monthly ranking and AI-citation check on 10 target questions",
+      "One-page monthly report",
+    ],
+    schemaDescription:
+      "Monthly SEO and AI search basics for a single-location business.",
+  },
+  {
+    id: "growth",
+    name: "SEO & AEO Growth",
+    price: { kind: "monthlyFrom", min: 1000 },
+    priceDisplay: "AUD $1,000/mo",
+    hoursPerMonth: 10,
+    bestFor: "Competing in a busy local market",
+    includes: [
+      "Everything in Foundation",
+      "2 articles a month written to be cited by AI answers",
+      "Internal linking improvements",
+      "Review response templates",
+      "Tracking on 25 target questions",
+    ],
+    schemaDescription:
+      "Monthly SEO and AI search with two articles a month written to be cited by AI answers.",
+  },
+  {
+    id: "authority",
+    name: "SEO & AEO Authority",
+    price: { kind: "monthlyFrom", min: 1500 },
+    priceDisplay: "AUD $1,500/mo",
+    hoursPerMonth: 15,
+    bestFor: "Multiple locations or service areas",
+    includes: [
+      "Everything in Growth",
+      "4 articles a month",
+      "Location and service-area pages",
+      "Tracking against 3 competitors",
+      "Quarterly strategy call",
+    ],
+    schemaDescription:
+      "Monthly SEO and AI search for multi-location businesses, with location pages and competitor tracking.",
+  },
+] as const;
+
 /** Number of phases in the published engagement model. Derive, never retype. */
 export const PHASE_COUNT = PRICING_PHASES.length;
 
@@ -207,6 +314,7 @@ export function priceFrom(price: PriceShape): number {
     case "range":
     case "monthlyRange":
     case "monthlyFrom":
+    case "hourlyFrom":
       return price.min;
   }
 }

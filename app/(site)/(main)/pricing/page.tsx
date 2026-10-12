@@ -1,9 +1,9 @@
 import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
-import { faqs, phases, reasons } from "./data";
+import { faqs, hourly, phases, reasons, seoAeo } from "./data";
 import FAQ from "@/app/components/FAQ";
 import { PricingSchema, BreadcrumbSchema } from "@/app/components/Schema";
-import { pricingPhaseById } from "@/lib/pricing";
+import { HOURLY_RATE, pricingPhaseById, SEO_AEO_TIERS } from "@/lib/pricing";
 
 // Prices in the description are derived so this string cannot drift from the
 // page it describes, which is how it came to advertise a $5K/month Managed
@@ -20,7 +20,12 @@ export const metadata: Metadata = {
     "assessment",
   )}, Discovery Sprint ${priced("discovery")}, Build & Integrate ${priced(
     "build",
-  )}, Managed Partnership ${priced("managed")}. No hidden fees.`,
+  )}, Managed Partnership ${priced("managed")}, hourly work ${HOURLY_RATE.priceDisplay
+    .replace("AUD ", "")
+    .replace(/^From /, "from ")}, SEO & AEO from ${SEO_AEO_TIERS[0].priceDisplay.replace(
+    "AUD ",
+    "",
+  )}. No hidden fees.`,
 };
 
 export default function Pricing() {
@@ -253,6 +258,165 @@ export default function Pricing() {
               </div>
             ))}
             <div style={{ borderTop: "1px solid var(--rule)" }} />
+
+            {/* Small jobs by the hour. Sits outside the phase list on purpose:
+                it is an offer, not a phase, so it must not read as Phase 05. */}
+            <div
+              style={{
+                marginTop: "clamp(2.5rem, 4vw, 3.5rem)",
+                border: "1px solid var(--rule)",
+                backgroundColor: "white",
+                padding: "clamp(1.75rem, 3vw, 2.5rem) clamp(1.5rem, 3vw, 2.5rem)",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "clamp(2rem, 4vw, 3.5rem)",
+              }}
+            >
+              <div>
+                <p className="eyebrow no-rule" style={{ marginBottom: "0.35rem" }}>
+                  Small jobs
+                </p>
+                <h2
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: "clamp(1.4rem, 2.5vw, 2rem)",
+                    fontWeight: 300,
+                    color: "var(--midnight-ink)",
+                    lineHeight: 1.1,
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  {hourly.title}{" "}
+                  <em className="gold">{hourly.price}</em>
+                </h2>
+                <p className="label" style={{ color: "var(--slate-mid)", marginBottom: "1.25rem" }}>
+                  {hourly.meta}
+                </p>
+                <p className="body-copy" style={{ color: "var(--slate-mid)", lineHeight: 1.75 }}>
+                  {hourly.body}
+                </p>
+              </div>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {hourly.examples.map((item, i) => (
+                  <li
+                    key={i}
+                    className="body-copy"
+                    style={{
+                      color: "var(--slate-mid)",
+                      padding: "0.625rem 0",
+                      borderBottom:
+                        i < hourly.examples.length - 1 ? "1px solid var(--rule)" : "none",
+                    }}
+                  >
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SEO & AEO ── */}
+        <section
+          className="section"
+          aria-labelledby="seo-aeo-heading"
+          style={{ backgroundColor: "var(--warm-cream)", paddingTop: 0 }}
+        >
+          <div className="container">
+            <div style={{ maxWidth: "60ch", marginBottom: "clamp(2rem, 3.5vw, 3rem)" }}>
+              <p className="eyebrow" style={{ marginBottom: "1rem" }}>
+                {seoAeo.eyebrow}
+              </p>
+              <h2
+                id="seo-aeo-heading"
+                className="h-section"
+                style={{ color: "var(--midnight-ink)", marginBottom: "1rem" }}
+              >
+                {seoAeo.title}{" "}
+                <em className="gold">from {SEO_AEO_TIERS[0].priceDisplay.replace("AUD ", "")}</em>
+              </h2>
+              <p className="body-copy" style={{ color: "var(--slate-mid)", lineHeight: 1.75 }}>
+                {seoAeo.intro}
+              </p>
+            </div>
+
+            {/* auto-fit so the three tiers stack on narrow screens without a
+                media query, matching the inline-style convention of this page. */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(16rem, 1fr))",
+                gap: "1px",
+                backgroundColor: "var(--rule)",
+                border: "1px solid var(--rule)",
+              }}
+            >
+              {seoAeo.tiers.map((tier) => (
+                <div
+                  key={tier.id}
+                  style={{
+                    backgroundColor: "white",
+                    padding: "clamp(1.5rem, 2.5vw, 2rem)",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <p className="eyebrow no-rule" style={{ marginBottom: "0.5rem" }}>
+                    {tier.hoursPerMonth} hours a month
+                  </p>
+                  <h3
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: "clamp(1.3rem, 2.2vw, 1.75rem)",
+                      fontWeight: 300,
+                      color: "var(--midnight-ink)",
+                      lineHeight: 1.1,
+                      marginBottom: "0.35rem",
+                    }}
+                  >
+                    {tier.name.replace("SEO & AEO ", "")}
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: "clamp(1.4rem, 2.6vw, 2rem)",
+                      fontWeight: 300,
+                      color: "var(--liquid-gold)",
+                      lineHeight: 1,
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    {tier.priceDisplay}
+                  </p>
+                  <p className="label" style={{ color: "var(--slate-mid)", marginBottom: "1.25rem" }}>
+                    {tier.bestFor}
+                  </p>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {tier.includes.map((item, i) => (
+                      <li
+                        key={i}
+                        className="body-copy"
+                        style={{
+                          color: "var(--slate-mid)",
+                          padding: "0.5rem 0",
+                          borderBottom:
+                            i < tier.includes.length - 1 ? "1px solid var(--rule)" : "none",
+                        }}
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <p
+              className="body-copy"
+              style={{ color: "var(--slate-mid)", marginTop: "1.25rem", fontSize: "0.9rem" }}
+            >
+              {seoAeo.terms}
+            </p>
           </div>
         </section>
 
